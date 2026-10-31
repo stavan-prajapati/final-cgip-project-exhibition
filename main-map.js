@@ -815,8 +815,8 @@ function createJoystick() {
     const base = document.createElement("div");
     base.style.cssText =
         "position:fixed; z-index:5; border-radius:50%;" +
-        `right:env(safe-area-inset-right, 0px);` +
-        `bottom:calc(28px + env(safe-area-inset-bottom, 0px));` +
+        `right:35px;` +
+        `bottom:calc(110px + env(safe-area-inset-bottom, 0px));` +
         `width:${JOY_SIZE}px; height:${JOY_SIZE}px;` +
         "opacity:0.45; background:rgba(255,255,255,0.35); border:3px solid rgba(255,255,255,0.85);" +
         "box-shadow:0 2px 10px rgba(0,0,0,0.25);" +
