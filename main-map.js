@@ -797,7 +797,7 @@ window.addEventListener("blur", () => {
     for (const k in keys) keys[k] = false;     // forget keys if the tab loses focus
 });
 
-// ---------- Controls: joystick (mobile + tablet, left side) ----------
+// ---------- Controls: joystick (mobile + tablet, right side) ----------
 const JOY_SIZE = 130;          // diameter of the joystick base (screen pixels)
 const JOY_DEAD_ZONE = 0.15;    // tiny thumb movements are ignored
 const joy = { x: 0, y: 0 };    // joystick direction, each from -1 to 1
@@ -815,10 +815,10 @@ function createJoystick() {
     const base = document.createElement("div");
     base.style.cssText =
         "position:fixed; z-index:5; border-radius:50%;" +
-        `left:calc(20px + env(safe-area-inset-left, 0px));` +
+        `right:env(safe-area-inset-right, 0px);` +
         `bottom:calc(28px + env(safe-area-inset-bottom, 0px));` +
         `width:${JOY_SIZE}px; height:${JOY_SIZE}px;` +
-        "background:rgba(255,255,255,0.35); border:3px solid rgba(255,255,255,0.85);" +
+        "opacity:0.45; background:rgba(255,255,255,0.35); border:3px solid rgba(255,255,255,0.85);" +
         "box-shadow:0 2px 10px rgba(0,0,0,0.25);" +
         "touch-action:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;";
 
