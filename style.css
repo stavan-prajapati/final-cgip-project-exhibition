@@ -1,0 +1,579 @@
+/* =========================================================
+   SMART ZOO GUIDE — RESPONSIVE PLACE INFORMATION CARD
+   ========================================================= */
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #8fbd75;
+    font-family: "Inter", "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+}
+
+canvas {
+    display: block;
+    position: fixed;
+    inset: 0;
+}
+
+[hidden] {
+    display: none !important;
+}
+
+/* ---------- Popup Background ---------- */
+
+.card-overlay {
+    --accent: #00897b;
+
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 24px;
+
+    background: rgba(12, 24, 18, 0.72);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+
+    opacity: 0;
+    visibility: hidden;
+
+    transition:
+        opacity 0.28s ease,
+        visibility 0s linear 0.28s;
+}
+
+.card-overlay.open {
+    opacity: 1;
+    visibility: visible;
+
+    transition: opacity 0.28s ease;
+}
+
+/* ---------- Main Popup ---------- */
+
+.card {
+    width: min(900px, 100%);
+
+    max-height: min(90vh, 900px);
+    max-height: min(90dvh, 900px);
+
+    display: flex;
+    flex-direction: column;
+
+    overflow: hidden;
+
+    color: #24312d;
+    background: #fffdf8;
+
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    border-radius: 28px;
+
+    box-shadow:
+        0 30px 90px rgba(0, 0, 0, 0.35),
+        0 8px 24px rgba(0, 0, 0, 0.12);
+
+    transform: translateY(24px) scale(0.97);
+
+    transition:
+        transform 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.card-overlay.open .card {
+    transform: translateY(0) scale(1);
+}
+
+/* ---------- Colorful Header ---------- */
+
+.card-header {
+    position: relative;
+
+    display: flex;
+    align-items: center;
+    gap: 20px;
+
+    padding: 28px 78px 28px 32px;
+
+    flex: none;
+
+    color: #fff;
+    background-color: var(--accent);
+
+    background-image:
+        radial-gradient(
+            circle at 90% 10%,
+            rgba(255, 255, 255, 0.2),
+            transparent 35%
+        ),
+        linear-gradient(
+            135deg,
+            rgba(255, 255, 255, 0.12),
+            rgba(0, 0, 0, 0.2)
+        );
+}
+
+/* ---------- Place Icon ---------- */
+
+.card-icon {
+    flex: none;
+
+    width: 76px;
+    height: 76px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    font-size: 40px;
+
+    background: rgba(255, 255, 255, 0.96);
+    border: 4px solid rgba(255, 255, 255, 0.65);
+    border-radius: 50%;
+
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+}
+
+/* ---------- Heading ---------- */
+
+.card-heading {
+    min-width: 0;
+}
+
+.card-heading h2 {
+    margin: 0;
+
+    font-size: clamp(24px, 3vw, 34px);
+    font-weight: 800;
+    line-height: 1.2;
+    letter-spacing: -0.7px;
+
+    text-wrap: balance;
+}
+
+.card-heading p {
+    margin: 9px 0 0;
+
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 1.55;
+
+    color: rgba(255, 255, 255, 0.92);
+}
+
+/* ---------- Close Button ---------- */
+
+.card-close {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+
+    width: 46px;
+    height: 46px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border: 0;
+    border-radius: 50%;
+
+    background: rgba(255, 255, 255, 0.95);
+    color: #24312d;
+
+    font-size: 28px;
+    line-height: 1;
+
+    cursor: pointer;
+
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.12);
+
+    transition:
+        background 0.2s ease,
+        transform 0.2s ease;
+}
+
+.card-close:hover {
+    background: #fff;
+    transform: rotate(90deg);
+}
+
+.card-close:focus-visible {
+    outline: 3px solid #fff;
+    outline-offset: 3px;
+}
+
+/* ---------- Scrollable Content ---------- */
+
+.card-body {
+    padding: 30px 36px 38px;
+
+    overflow-y: auto;
+    overscroll-behavior: contain;
+
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: #c6d5c8 transparent;
+}
+
+.card-body h3 {
+    margin: 0 0 14px;
+
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+
+    color: var(--accent);
+}
+
+/* ---------- Place Image ---------- */
+
+.card-photo {
+    margin: 0 0 30px;
+}
+
+.photo-frame {
+    position: relative;
+
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    max-height: 390px;
+
+    overflow: hidden;
+
+    background: #e4e8df;
+
+    border: 4px solid #fff;
+    border-radius: 22px;
+
+    box-shadow:
+        0 10px 28px rgba(31, 48, 37, 0.13),
+        0 2px 5px rgba(31, 48, 37, 0.08);
+}
+
+.photo-frame img {
+    display: block;
+
+    width: 100%;
+    height: 100%;
+
+    object-fit: cover;
+
+    transition: transform 0.5s ease;
+}
+
+.photo-frame:hover img {
+    transform: scale(1.025);
+}
+
+/* ---------- Photo Placeholder ---------- */
+
+.photo-fallback {
+    width: 100%;
+    height: 100%;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+
+    color: #536b50;
+
+    background:
+        radial-gradient(
+            circle at 50% 40%,
+            rgba(255, 255, 255, 0.8),
+            transparent 55%
+        ),
+        linear-gradient(135deg, #e7f0df, #d5e5cc);
+}
+
+.photo-fallback span {
+    font-size: 64px;
+}
+
+.photo-fallback small {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+.card-photo figcaption {
+    margin-top: 10px;
+
+    font-size: 12px;
+    line-height: 1.5;
+
+    color: #7b8580;
+}
+
+.card-photo figcaption:empty {
+    display: none;
+}
+
+/* ---------- Facts ---------- */
+
+.facts {
+    display: grid;
+    gap: 14px;
+
+    margin: 0;
+    padding: 0;
+
+    list-style: none;
+}
+
+.facts li {
+    position: relative;
+
+    margin: 0;
+    padding: 18px 20px 18px 48px;
+
+    font-size: 17px;
+    font-weight: 450;
+    line-height: 1.8;
+
+    color: #394640;
+
+    background: #f5f7f1;
+
+    border: 1px solid #e9eee4;
+    border-radius: 16px;
+}
+
+.facts li::before {
+    content: "";
+
+    position: absolute;
+    left: 20px;
+    top: 27px;
+
+    width: 10px;
+    height: 10px;
+
+    border-radius: 50%;
+
+    background: var(--accent);
+
+    box-shadow:
+        0 0 0 5px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+/* ---------- Highlighted Information ---------- */
+
+.note {
+    margin: 24px 0 0;
+    padding: 20px 22px;
+
+    border-left: 5px solid;
+    border-radius: 16px;
+}
+
+.note p {
+    margin: 0;
+
+    font-size: 16px;
+    line-height: 1.8;
+}
+
+.did-you-know {
+    background: #eaf4e5;
+    border-color: #6aa84f;
+}
+
+.did-you-know h3 {
+    color: #3d7a2a;
+}
+
+.visit-tip {
+    background: #fff4df;
+    border-color: #e5a12b;
+}
+
+.visit-tip h3 {
+    color: #a96500;
+}
+
+/* ---------- Sources ---------- */
+
+.sources {
+    margin-top: 28px;
+    padding-top: 18px;
+
+    border-top: 1px solid #e6e9e1;
+}
+
+.sources h3 {
+    color: #858c87;
+}
+
+.sources ul {
+    margin: 0;
+    padding-left: 20px;
+
+    font-size: 13px;
+    line-height: 1.8;
+
+    color: #737b76;
+}
+
+/* ---------- Mobile ---------- */
+
+@media (max-width: 600px) {
+    .card-overlay {
+        align-items: flex-end;
+        padding: 0;
+    }
+
+    .card {
+        width: 100%;
+
+        max-height: 94vh;
+        max-height: 94dvh;
+
+        border-radius: 26px 26px 0 0;
+
+        transform: translateY(40px);
+    }
+
+    .card-header {
+        gap: 14px;
+
+        padding: 22px 62px 21px 20px;
+    }
+
+    .card-icon {
+        width: 58px;
+        height: 58px;
+
+        font-size: 31px;
+        border-width: 3px;
+    }
+
+    .card-heading h2 {
+        font-size: 22px;
+        line-height: 1.25;
+        letter-spacing: -0.3px;
+    }
+
+    .card-heading p {
+        margin-top: 6px;
+        font-size: 14px;
+        line-height: 1.45;
+    }
+
+    .card-close {
+        top: 13px;
+        right: 13px;
+
+        width: 40px;
+        height: 40px;
+
+        font-size: 26px;
+    }
+
+    .card-body {
+        padding: 22px 18px 32px;
+    }
+
+    .card-body h3 {
+        font-size: 12px;
+    }
+
+    .card-photo {
+        margin-bottom: 24px;
+    }
+
+    .photo-frame {
+        aspect-ratio: 4 / 3;
+        border-radius: 17px;
+    }
+
+    .photo-fallback span {
+        font-size: 54px;
+    }
+
+    .facts {
+        gap: 11px;
+    }
+
+    .facts li {
+        padding: 15px 15px 15px 40px;
+
+        font-size: 15.5px;
+        line-height: 1.75;
+
+        border-radius: 13px;
+    }
+
+    .facts li::before {
+        left: 16px;
+        top: 24px;
+
+        width: 8px;
+        height: 8px;
+    }
+
+    .note {
+        margin-top: 18px;
+        padding: 16px;
+    }
+
+    .note p {
+        font-size: 15px;
+        line-height: 1.75;
+    }
+
+    .sources {
+        margin-top: 22px;
+    }
+}
+
+/* ---------- Small Phones ---------- */
+
+@media (max-width: 360px) {
+    .card-header {
+        gap: 10px;
+        padding-left: 14px;
+    }
+
+    .card-icon {
+        width: 48px;
+        height: 48px;
+        font-size: 26px;
+    }
+
+    .card-heading h2 {
+        font-size: 19px;
+    }
+
+    .card-heading p {
+        font-size: 13px;
+    }
+
+    .card-body {
+        padding-left: 14px;
+        padding-right: 14px;
+    }
+}
+
+/* ---------- Reduced Motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+    .card-overlay,
+    .card,
+    .photo-frame img {
+        transition: none;
+    }
+}
