@@ -322,7 +322,7 @@ function resizeCanvas() {
 // They are drawn BEFORE the water, paths and trees, so those simply cover them:
 // nothing needs to be cut out around the path.
 const TUFT_COUNT = 2600;
-const FLOWER_COUNT = 0;      // petal flowers are switched off (set to 110 to bring them back)
+const FLOWER_COUNT = 110;    // number of little petal flowers on the grass (0 = none)
 const FLOWER_PETAL_COLORS = ["#f2e9d0", "#e58e92", "#f4c85a", "#b9a3e8"];
 let groundTuftsDark = null, groundTuftsLight = null;
 let groundFlowerPaths = null, groundFlowerCenters = null;
