@@ -6,10 +6,13 @@
 // on a PC, joystick on a phone) and a map that fits every screen.
 // The Canva design has diagonal parts, so the walkways are drawn as thick lines
 // through a list of points (see "AVIARY GEOMETRY" below).
+// The whole walkway is a WOODEN BRIDGE (planks + railings). Only the entry stretch
+// (bottom) and the exit stretch stay on the ground, drawn as tiles.
 // ============================================================
 
 const canvas = document.getElementById("aviarySectionMap");
-const ctx = canvas.getContext("2d");
+const screenCtx = canvas.getContext("2d");
+let ctx = screenCtx;      // drawing goes to ctx (the screen, or a hidden layer while the map is being cached)
 
 // Colors
 const GRASS_COLOR = "#8fbd75";
@@ -123,16 +126,97 @@ function canvaLine(list) {
     return list.map(function (p) { return canvaPoint(p[0], p[1]); });
 }
 
+// ---------- Curved corners ----------
+// Every corner of a walkway is rounded, so the pointer glides round the bends.
+// CORNER_RADIUS is the size of the curve (map units). 0 = sharp corners, bigger = rounder.
+// (The road is 60 wide, so keep it at 45 or more, or the inside of a bend gets pinched.)
+const CORNER_RADIUS = 70;
+const CORNER_STEPS = 12;           // how many small pieces make up one curve
+
+// Replace each corner of a list of points by a smooth curve (a quadratic Bezier curve:
+// it starts on the first line, ends on the second one, and the corner is its control point).
+function roundCorners(points, radius) {
+    const out = [points[0]];
+    for (let i = 1; i < points.length - 1; i++) {
+        const p0 = points[i - 1], p1 = points[i], p2 = points[i + 1];
+        const l1 = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+        const l2 = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+        const u1 = { x: (p1.x - p0.x) / l1, y: (p1.y - p0.y) / l1 };
+        const u2 = { x: (p2.x - p1.x) / l2, y: (p2.y - p1.y) / l2 };
+        const turn = Math.acos(Math.max(-1, Math.min(1, u1.x * u2.x + u1.y * u2.y)));   // 0 = straight on
+
+        if (turn < 0.02 || radius <= 0) { out.push(p1); continue; }
+
+        // how far before / after the corner the curve starts and ends
+        let d = radius * Math.tan(turn / 2);
+        d = Math.min(d, l1 * 0.48, l2 * 0.48);
+        const a = { x: p1.x - u1.x * d, y: p1.y - u1.y * d };
+        const b = { x: p1.x + u2.x * d, y: p1.y + u2.y * d };
+
+        for (let k = 0; k <= CORNER_STEPS; k++) {
+            const t = k / CORNER_STEPS, m = 1 - t;
+            out.push({
+                x: m * m * a.x + 2 * m * t * p1.x + t * t * b.x,
+                y: m * m * a.y + 2 * m * t * p1.y + t * t * b.y
+            });
+        }
+    }
+    out.push(points[points.length - 1]);
+    return out;
+}
+function curvedLine(list) {
+    return roundCorners(canvaLine(list), CORNER_RADIUS);
+}
+
+// Length of a line, the distance along it of the point nearest to p, and a piece cut out of it
+function lineLength(line) {
+    let total = 0;
+    for (let i = 0; i < line.length - 1; i++) total += Math.hypot(line[i + 1].x - line[i].x, line[i + 1].y - line[i].y);
+    return total;
+}
+function distanceAlong(line, p) {
+    let best = Infinity, bestAlong = 0, walked = 0;
+    for (let i = 0; i < line.length - 1; i++) {
+        const a = line[i], b = line[i + 1];
+        const len = Math.hypot(b.x - a.x, b.y - a.y);
+        let t = ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / (len * len);
+        t = Math.max(0, Math.min(1, t));
+        const d = Math.hypot(p.x - (a.x + (b.x - a.x) * t), p.y - (a.y + (b.y - a.y) * t));
+        if (d < best) { best = d; bestAlong = walked + t * len; }
+        walked += len;
+    }
+    return bestAlong;
+}
+function sliceLine(line, from, to) {
+    const out = [];
+    let walked = 0;
+    for (let i = 0; i < line.length - 1; i++) {
+        const a = line[i], b = line[i + 1];
+        const len = Math.hypot(b.x - a.x, b.y - a.y);
+        const s0 = Math.max(from, walked), s1 = Math.min(to, walked + len);
+        if (s1 > s0) {
+            const at = function (s) {
+                const t = (s - walked) / len;
+                return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+            };
+            if (out.length === 0) out.push(at(s0));
+            out.push(at(s1));
+        }
+        walked += len;
+    }
+    return out;
+}
+
 // ---------- Walkways (ground level) ----------
 const walkways = [
     // 1. Entrance (bottom), up to the junction, then round the LEFT lobe.
     //    It ends under the west end of the bridge.
-    canvaLine([[743, 568], [743, 472], [698, 408], [698, 300], [630, 251], [468, 250],
-               [420, 313], [420, 378], [495, 404], [600, 405]]),
+    curvedLine([[743, 568], [743, 472], [698, 408], [698, 300], [630, 251], [468, 250],
+                [420, 313], [420, 378], [495, 404], [600, 405]]),
 
     // 2. The RIGHT lobe. It starts under the east end of the bridge and ends at the exit.
-    canvaLine([[720, 405], [755, 405], [808, 339], [967, 340], [1038, 378], [1030, 452],
-               [958, 484], [880, 484], [786, 462], [786, 534]])
+    curvedLine([[720, 405], [755, 405], [808, 339], [967, 340], [1038, 378], [1030, 452],
+                [958, 484], [880, 484], [786, 462], [786, 534]])
 ];
 
 // ---------- Bridge (the grey part of the Canva file) ----------
@@ -144,22 +228,30 @@ const bridge = (function () {
     return { x: a.x, y: a.y - PATH_WIDTH / 2, w: b.x - a.x, h: PATH_WIDTH };
 })();
 
+// ---------- Wooden deck: the part of the walkway that is a bridge ----------
+// These are the same walkways as above, but WITHOUT the first and the last stretch.
+// The entry stretch (from y = 568 up to y = 500) and the exit stretch (from y = 494 down to
+// y = 534) are left out, so they stay ground tiles. To make a stretch longer or shorter,
+// change the first / last point of these two lists.
+const deckLines = [
+    sliceLine(walkways[0], distanceAlong(walkways[0], canvaPoint(743, 500)), Infinity),
+    sliceLine(walkways[1], 0, distanceAlong(walkways[1], canvaPoint(786, 494)))
+];
+
 // ---------- Blue dotted guide line ----------
 // The part that goes UNDER the bridge is drawn before the bridge, so the deck hides it.
 const groundRoutes = [
-    canvaLine([[743, 568], [743, 472], [698, 408], [698, 300], [630, 251], [468, 250],
-               [420, 313], [420, 378], [495, 404], [575, 405]]),
-    canvaLine([[755, 405], [808, 339], [967, 340], [1038, 378], [1030, 452],
-               [958, 484], [880, 484], [786, 462], [786, 534]])
+    sliceLine(walkways[0], 0, distanceAlong(walkways[0], canvaPoint(575, 405))),
+    sliceLine(walkways[1], distanceAlong(walkways[1], canvaPoint(755, 405)), Infinity)
 ];
 // The part ON the bridge is drawn after the deck.
 const bridgeRoutes = [
-    canvaLine([[575, 405], [755, 405]])
+    [canvaPoint(575, 405), { x: groundRoutes[1][0].x, y: canvaPoint(575, 405).y }, groundRoutes[1][0]]
 ];
 
 // ---------- View box: the part of the map that is fitted to the screen ----------
 // Worked out from the walkways, with a free grass border around them.
-const VIEW_PADDING = 60;
+const VIEW_PADDING = 36;
 const view = (function () {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const line of walkways) {
@@ -172,10 +264,10 @@ const view = (function () {
     return { x: minX - pad, y: minY - pad, w: maxX - minX + 2 * pad, h: maxY - minY + 2 * pad };
 })();
 
-// This map is wide, a phone held upright is tall. On such a screen the whole map is
-// turned a quarter turn, so it fills the screen and everything is drawn much bigger.
-// (The controls are turned with it, so "up" on the joystick is still "up" on the screen.)
-const ROTATE_ON_PORTRAIT = true;
+// This map is wide and a phone held upright is tall. If this is true, the map is turned a
+// quarter turn on such a screen so it is drawn bigger (it then looks sideways).
+// false = the map always stays upright, on every device.
+const ROTATE_ON_PORTRAIT = false;
 
 // ======================================================================
 // WALKABLE AREA: ground level and bridge level
@@ -183,29 +275,33 @@ const ROTATE_ON_PORTRAIT = true;
 
 // Each straight piece of a walkway is a rectangle that can be turned to any angle.
 // Corners (points between two pieces) get a circle, so they stay walkable.
-const groundSegments = [];
-const groundJoints = [];
-for (const line of walkways) {
+// Every walkway is kept SEPARATE (walkway 0 = entrance + left lobe, walkway 1 = right lobe + exit),
+// so the visitor can never walk from one walkway onto the other on the ground,
+// even where the two pass close to each other under the bridge.
+const wayParts = walkways.map(function (line) {
+    const segments = [], joints = [];
     for (let i = 0; i < line.length - 1; i++) {
         const a = line[i], b = line[i + 1];
         const length = Math.hypot(b.x - a.x, b.y - a.y);
-        groundSegments.push({ ax: a.x, ay: a.y, dx: (b.x - a.x) / length, dy: (b.y - a.y) / length, length: length });
+        segments.push({ ax: a.x, ay: a.y, dx: (b.x - a.x) / length, dy: (b.y - a.y) / length, length: length });
     }
-    for (let i = 1; i < line.length - 1; i++) groundJoints.push(line[i]);
-}
+    for (let i = 1; i < line.length - 1; i++) joints.push(line[i]);
+    return { segments: segments, joints: joints };
+});
 
-// Is the point on a ground walkway?
-function pointOnGround(px, py) {
+// Is the point on ground walkway number "way"?
+function pointOnWay(way, px, py) {
     const half = PATH_WIDTH / 2;
+    const part = wayParts[way];
 
-    for (const s of groundSegments) {
+    for (const s of part.segments) {
         const rx = px - s.ax, ry = py - s.ay;
         const along = rx * s.dx + ry * s.dy;              // distance along the piece
         if (along < 0 || along > s.length) continue;
         const across = Math.abs(rx * s.dy - ry * s.dx);   // distance from its center line
         if (across <= half) return true;
     }
-    for (const j of groundJoints) {
+    for (const j of part.joints) {
         if (Math.hypot(px - j.x, py - j.y) <= half) return true;
     }
     return false;
@@ -216,11 +312,16 @@ function pointOnBridge(px, py) {
     return px >= bridge.x && px <= bridge.x + bridge.w && py >= bridge.y && py <= bridge.y + bridge.h;
 }
 
-// Is the point within the two ends of the bridge (where you walk onto / off it)?
-const BRIDGE_END_ZONE = 70;
-function nearBridgeEnd(px, py) {
+// The bridge has exactly TWO doors:
+//   west door  <->  walkway 0 (the left lobe)
+//   east door  <->  walkway 1 (the right lobe)
+// You can only step between the ground and the bridge through the door of the walkway you are on.
+// The part of walkway 0 that passes UNDER the bridge has no door, so you can never step up from it.
+const BRIDGE_END_ZONE = 70;      // how far from each end of the bridge the door area reaches
+function inDoorOfWay(way, px, py) {
     if (py < bridge.y - 10 || py > bridge.y + bridge.h + 10) return false;
-    return px < bridge.x + BRIDGE_END_ZONE || px > bridge.x + bridge.w - BRIDGE_END_ZONE;
+    return way === 0 ? px < bridge.x + BRIDGE_END_ZONE
+                     : px > bridge.x + bridge.w - BRIDGE_END_ZONE;
 }
 
 // ======================================================================
@@ -236,21 +337,22 @@ const JOYSTICK_SPEED_FACTOR = 0.72;           // 1 = same as keyboard, 0.72 = a 
 
 // heading = angle the pointer faces (0 = right, PI = left)
 // level   = "ground" or "bridge": which level the visitor is walking on
-const visitor = { x: VISITOR_START.x, y: VISITOR_START.y, heading: -Math.PI / 2, level: "ground" };
+// way     = on the ground: which walkway (0 or 1) the visitor is on
+const visitor = { x: VISITOR_START.x, y: VISITOR_START.y, heading: -Math.PI / 2, level: "ground", way: 0 };
 
 // ---------- Collision ----------
 // The visitor is a circle. It may stand at (x, y) on a level only if the center AND
-// 8 points around its edge are all on that level.
-function onLevel(level, px, py) {
-    return level === "bridge" ? pointOnBridge(px, py) : pointOnGround(px, py);
+// 8 points around its edge are all on that level (and, on the ground, on the SAME walkway).
+function onLevel(level, way, px, py) {
+    return level === "bridge" ? pointOnBridge(px, py) : pointOnWay(way, px, py);
 }
 
-function canStandOn(level, x, y) {
-    if (!onLevel(level, x, y)) return false;
+function canStandOn(level, way, x, y) {
+    if (!onLevel(level, way, x, y)) return false;
 
     for (let i = 0; i < 8; i++) {
         const a = i * Math.PI / 4;
-        if (!onLevel(level, x + Math.cos(a) * VISITOR_RADIUS, y + Math.sin(a) * VISITOR_RADIUS)) {
+        if (!onLevel(level, way, x + Math.cos(a) * VISITOR_RADIUS, y + Math.sin(a) * VISITOR_RADIUS)) {
             return false;
         }
     }
@@ -258,21 +360,31 @@ function canStandOn(level, x, y) {
 }
 
 // Try to move the visitor to (nx, ny).
-// You can only change level at the two ends of the bridge: so the walkway that passes
-// UNDER the bridge can never be entered from the bridge, and the other way round.
 function moveVisitorTo(nx, ny) {
-    if (canStandOn(visitor.level, nx, ny)) {
+    // 1. stay on the same level / walkway
+    if (canStandOn(visitor.level, visitor.way, nx, ny)) {
         visitor.x = nx;
         visitor.y = ny;
         return;
     }
 
-    if (nearBridgeEnd(visitor.x, visitor.y)) {
-        const other = visitor.level === "ground" ? "bridge" : "ground";
-        if (canStandOn(other, nx, ny)) {
-            visitor.level = other;
+    if (visitor.level === "ground") {
+        // 2. ground -> bridge: only through the door of the walkway you are standing on
+        if (inDoorOfWay(visitor.way, visitor.x, visitor.y) && canStandOn("bridge", 0, nx, ny)) {
+            visitor.level = "bridge";
             visitor.x = nx;
             visitor.y = ny;
+        }
+    } else {
+        // 3. bridge -> ground: the west door leads to walkway 0, the east door to walkway 1
+        for (let way = 0; way <= 1; way++) {
+            if (inDoorOfWay(way, visitor.x, visitor.y) && canStandOn("ground", way, nx, ny)) {
+                visitor.level = "ground";
+                visitor.way = way;
+                visitor.x = nx;
+                visitor.y = ny;
+                return;
+            }
         }
     }
 }
@@ -281,7 +393,7 @@ function moveVisitorTo(nx, ny) {
 function visitorIsUnderBridge() {
     return visitor.level === "ground" &&
            pointOnBridge(visitor.x, visitor.y) &&
-           !nearBridgeEnd(visitor.x, visitor.y);
+           !inDoorOfWay(visitor.way, visitor.x, visitor.y);
 }
 
 // ---------- Controls: keyboard (PC) ----------
@@ -756,10 +868,172 @@ function drawRailing(xStart, xEnd, railY) {
 function drawBridge() {
     drawBridgeDeck();
 
-    // Top railing stops before the east end, where the right-lobe walkway bends away upwards.
-    drawRailing(bridge.x + 4, bridge.x + bridge.w - 70, bridge.y + 1);
+    // Top railing stops where the railing of the right-lobe walkway starts (it bends away upwards).
+    const railD = PATH_WIDTH / 2 - RAIL_HEIGHT / 2 - 1;
+    const sideA = offsetLine(deckLines[1], railD), sideB = offsetLine(deckLines[1], -railD);
+    const topSide = (sideA[0].y < sideB[0].y) ? sideA : sideB;
+    let railEnd = bridge.x + bridge.w - 4;
+    for (const p of topSide) {                      // first point where the top edge starts to bend upwards
+        if (Math.abs(p.y - topSide[0].y) > 0.5) { railEnd = Math.min(railEnd, p.x + POST_SIZE / 2); break; }
+    }
+    drawRailing(bridge.x + 4, railEnd, bridge.y + 1);
     // Bottom railing runs the whole length.
     drawRailing(bridge.x + 4, bridge.x + bridge.w - 4, bridge.y + bridge.h - RAIL_HEIGHT - 1);
+}
+
+// ---------- Wooden deck of the walkway ----------
+
+// Planks: the whole line is first painted with one wood color, then every second plank is
+// painted a little darker. Planks lie ACROSS the walking direction, also on diagonal parts.
+function drawDeckPlanks(line) {
+    const half = PATH_WIDTH / 2;
+
+    ctx.save();
+    ctx.lineJoin = "miter";
+    ctx.lineCap = "butt";
+    ctx.miterLimit = 10;
+    ctx.lineWidth = PATH_WIDTH;
+    ctx.strokeStyle = DECK_COLOR_A;
+    ctx.beginPath();
+    ctx.moveTo(line[0].x, line[0].y);
+    for (let i = 1; i < line.length; i++) ctx.lineTo(line[i].x, line[i].y);
+    ctx.stroke();
+
+    const leftSide = offsetLine(line, half);
+    const rightSide = offsetLine(line, -half);
+
+    let walked = 0;                                   // distance from the start of the deck line
+    for (let i = 0; i < line.length - 1; i++) {
+        const a = line[i], b = line[i + 1];
+        const length = Math.hypot(b.x - a.x, b.y - a.y);
+
+        ctx.save();
+
+        // this piece only: the area between the two corner cuts (so planks never overlap at corners)
+        ctx.beginPath();
+        ctx.moveTo(leftSide[i].x, leftSide[i].y);
+        ctx.lineTo(leftSide[i + 1].x, leftSide[i + 1].y);
+        ctx.lineTo(rightSide[i + 1].x, rightSide[i + 1].y);
+        ctx.lineTo(rightSide[i].x, rightSide[i].y);
+        ctx.closePath();
+        ctx.clip();
+
+        ctx.translate(a.x, a.y);
+        ctx.rotate(Math.atan2(b.y - a.y, b.x - a.x));    // x axis now runs along this piece
+
+        // planks are counted along the whole line, so they alternate smoothly round the curves
+        const first = Math.floor((walked - PATH_WIDTH) / PLANK_WIDTH);
+        const last = Math.ceil((walked + length + PATH_WIDTH) / PLANK_WIDTH);
+        for (let k = first; k <= last; k++) {
+            const t = k * PLANK_WIDTH - walked;           // where this plank starts on this piece
+            if (k % 2 !== 0) {
+                ctx.fillStyle = DECK_COLOR_B;
+                ctx.fillRect(t, -half, PLANK_WIDTH, PATH_WIDTH);
+            }
+            ctx.fillStyle = PLANK_SEAM_COLOR;             // thin dark gap between planks
+            ctx.fillRect(t, -half, 1, PATH_WIDTH);
+        }
+        ctx.restore();
+        walked += length;
+    }
+    ctx.restore();
+}
+
+// A line moved sideways by d (left of the walking direction if d > 0).
+// Corners are joined with a miter, so the result stays parallel to the walkway.
+function offsetLine(line, d) {
+    const normals = [];
+    for (let i = 0; i < line.length - 1; i++) {
+        const dx = line[i + 1].x - line[i].x, dy = line[i + 1].y - line[i].y;
+        const len = Math.hypot(dx, dy);
+        normals.push({ x: -dy / len, y: dx / len });
+    }
+    const out = [];
+    for (let i = 0; i < line.length; i++) {
+        const p = line[i];
+        if (i === 0) {
+            out.push({ x: p.x + normals[0].x * d, y: p.y + normals[0].y * d });
+        } else if (i === line.length - 1) {
+            const n = normals[i - 1];
+            out.push({ x: p.x + n.x * d, y: p.y + n.y * d });
+        } else {
+            const n1 = normals[i - 1], n2 = normals[i];
+            let mx = n1.x + n2.x, my = n1.y + n2.y;
+            const ml = Math.hypot(mx, my);
+            mx /= ml; my /= ml;
+            const k = d / (mx * n1.x + my * n1.y);
+            out.push({ x: p.x + mx * k, y: p.y + my * k });
+        }
+    }
+    return out;
+}
+
+// One railing along a list of points: a long bar with square posts about 40 apart
+function drawRailAlong(points) {
+    ctx.save();
+    ctx.lineJoin = "miter";
+    ctx.lineCap = "butt";
+    ctx.lineWidth = RAIL_HEIGHT;
+    ctx.strokeStyle = RAIL_COLOR;
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
+    ctx.stroke();
+
+    ctx.fillStyle = POST_COLOR;
+    const post = function (x, y) {
+        ctx.fillRect(x - POST_SIZE / 2, y - POST_SIZE / 2, POST_SIZE, POST_SIZE);
+    };
+    // posts are placed by distance along the rail (about 40 apart), so curves don't get crowded
+    let total = 0;
+    for (let i = 0; i < points.length - 1; i++) total += Math.hypot(points[i + 1].x - points[i].x, points[i + 1].y - points[i].y);
+    const gaps = Math.max(1, Math.round(total / 40));
+    let walked = 0, next = 0;
+    for (let i = 0; i < points.length - 1; i++) {
+        const a = points[i], b = points[i + 1];
+        const len = Math.hypot(b.x - a.x, b.y - a.y);
+        while (next <= gaps && next * total / gaps <= walked + len + 0.001) {
+            const t = len > 0 ? (next * total / gaps - walked) / len : 0;
+            post(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t);
+            next++;
+        }
+        walked += len;
+    }
+    ctx.restore();
+}
+
+// Both railings of a deck line
+function drawDeckRails(line) {
+    const d = PATH_WIDTH / 2 - RAIL_HEIGHT / 2 - 1;
+    drawRailAlong(offsetLine(line, d));
+    drawRailAlong(offsetLine(line, -d));
+}
+
+// A dark beam across each open end of a deck (where you step onto / off the bridge)
+function drawDeckEnds(line) {
+    const half = PATH_WIDTH / 2;
+    const ends = [
+        { p: line[0], q: line[1] },
+        { p: line[line.length - 1], q: line[line.length - 2] }
+    ];
+    ctx.save();
+    ctx.fillStyle = RAIL_COLOR;
+    for (const e of ends) {
+        ctx.save();
+        ctx.translate(e.p.x, e.p.y);
+        ctx.rotate(Math.atan2(e.p.y - e.q.y, e.p.x - e.q.x));   // x axis points OUT of the deck
+        ctx.fillRect(-3, -half, 3, PATH_WIDTH);
+        ctx.restore();
+    }
+    ctx.restore();
+}
+
+// The bridge that crosses over the walkway lies above it, so it throws a shadow on it
+function drawBridgeShadow() {
+    ctx.save();
+    ctx.fillStyle = "rgba(0, 0, 0, 0.16)";
+    ctx.fillRect(bridge.x - 4, bridge.y - 2, bridge.w + 8, bridge.h + 10);
+    ctx.restore();
 }
 
 // ---------- Dotted route ----------
@@ -789,16 +1063,53 @@ function drawDottedRoute(routes) {
     ctx.restore();
 }
 
+// The parts of the map that never move are drawn ONCE into two hidden pictures (layers)
+// and only copied to the screen every frame. This keeps the map smooth on a phone.
+let baseLayer = null;      // grass, walkways, wooden deck, railings
+let bridgeLayer = null;    // the bridge that crosses over (and its shadow)
+let viewMatrix = [1, 0, 0, 1, 0, 0];
+
+function makeLayer(drawIt) {
+    const layer = document.createElement("canvas");
+    layer.width = canvas.width;
+    layer.height = canvas.height;
+    const layerCtx = layer.getContext("2d");
+    layerCtx.setTransform(viewMatrix[0], viewMatrix[1], viewMatrix[2], viewMatrix[3], viewMatrix[4], viewMatrix[5]);
+    ctx = layerCtx;                    // everything the drawing functions draw now goes into the layer
+    drawIt();
+    ctx = screenCtx;
+    return layer;
+}
+
+function buildLayers() {
+    baseLayer = makeLayer(function () {
+        drawGrass();
+        drawPaths();                                           // shadows + tiled walkways (entry and exit stay tiles)
+        for (const line of deckLines) drawDeckPlanks(line);    // wooden deck of the walkway
+        for (const line of deckLines) { drawDeckEnds(line); drawDeckRails(line); }
+    });
+    bridgeLayer = makeLayer(function () {
+        drawBridgeShadow();
+        drawBridge();
+    });
+}
+
+function drawLayer(layer) {
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(layer, 0, 0);
+    ctx.restore();
+}
+
 // Draw complete map (order matters: later drawings appear on top)
 function drawMap() {
-    drawGrass();                       // 1. grass
-    drawPaths();                       // 2. shadows + tiled walkways
-    drawDottedRoute(groundRoutes);     // 3. blue dots on the walkways (the bridge will cover the part under it)
-
-    if (visitorIsUnderBridge()) drawVisitor();   // 4. a visitor walking UNDER the bridge is drawn before the deck
-    drawBridge();                      // 5. the bridge lies over everything below it
-    drawDottedRoute(bridgeRoutes);     // 6. blue dots on the bridge deck
-    if (!visitorIsUnderBridge()) drawVisitor();  // 7. visitor pointer, on top
+    if (!baseLayer) return;
+    drawLayer(baseLayer);              // 1-3. grass, walkways, wooden deck, railings
+    drawDottedRoute(groundRoutes);     // 4. blue dots on the walkways (the bridge will cover the part under it)
+    if (visitorIsUnderBridge()) drawVisitor();   // 5. a visitor walking UNDER the bridge is drawn before the bridge
+    drawLayer(bridgeLayer);            // 6. the bridge lies over everything below it
+    drawDottedRoute(bridgeRoutes);     // 7. blue dots on the bridge deck
+    if (!visitorIsUnderBridge()) drawVisitor();  // 8. visitor pointer, on top
 }
 
 // ======================================================================
@@ -836,22 +1147,24 @@ function resizeCanvas() {
 
     if (viewRotated) {
         // turned 90 degrees clockwise: map "down" points to the left of the screen
-        ctx.setTransform(
+        viewMatrix = [
             0, pixelRatio * s,
             -pixelRatio * s, 0,
             pixelRatio * (screenWidth / 2 + s * cy),
             pixelRatio * (screenHeight / 2 - s * cx)
-        );
+        ];
     } else {
-        ctx.setTransform(
+        viewMatrix = [
             pixelRatio * s, 0,
             0, pixelRatio * s,
             pixelRatio * (screenWidth / 2 - s * cx),
             pixelRatio * (screenHeight / 2 - s * cy)
-        );
+        ];
     }
+    screenCtx.setTransform(viewMatrix[0], viewMatrix[1], viewMatrix[2], viewMatrix[3], viewMatrix[4], viewMatrix[5]);
 
     grassPattern = buildGrassPattern(pixelRatio);
+    buildLayers();
     drawMap();
 }
 
