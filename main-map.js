@@ -1317,7 +1317,7 @@ function drawDottedRoute() {
 // ---------- Visitor pointer settings ----------
 const VISITOR_START = { x: 800, y: 245 };   // ENTRY POINT: the ticket path, next to the Ticket Counter
 const VISITOR_RADIUS = 15;                  // size of the pointer (also its collision circle)
-const VISITOR_SPEED = 140;                  // map units per second
+const VISITOR_SCREEN_SPEED = 130;            // how fast the pointer moves ON THE SCREEN (pixels per second), the same on every device
 const VISITOR_COLOR = "#168bff";
 
 // The visitor may walk on every path rectangle (the bridge is R3, so it is included)
@@ -1570,11 +1570,19 @@ function updateVisitor(dt) {
     // 2. TRANSLATION:  x' = x + tx,  y' = y + ty   (done with the matrix T(tx, ty)).
     //    X and Y are tried separately, so the pointer slides along walls
     //    instead of getting stuck.
-    const step = VISITOR_SPEED * dt;
-    const movedX = transformPoint(translationMatrix(ix * step, 0), visitor);
-    if (canWalk(movedX.x, visitor.y)) visitor.x = movedX.x;
-    const movedY = transformPoint(translationMatrix(0, iy * step), visitor);
-    if (canWalk(visitor.x, movedY.y)) visitor.y = movedY.y;
+    // The speed is set in screen pixels, so the pointer feels equally fast on a small phone
+    // (where the map is drawn small) and on a big PC screen. It is converted to map units here.
+    const totalStep = (VISITOR_SCREEN_SPEED / viewScale) * dt;
+    // The move is cut into small pieces, so even one slow frame can never jump over a wall edge.
+    const pieces = Math.max(1, Math.ceil(totalStep / 8));
+    const step = totalStep / pieces;
+
+    for (let i = 0; i < pieces; i++) {
+        const movedX = transformPoint(translationMatrix(ix * step, 0), visitor);
+        if (canWalk(movedX.x, visitor.y)) visitor.x = movedX.x;
+        const movedY = transformPoint(translationMatrix(0, iy * step), visitor);
+        if (canWalk(visitor.x, movedY.y)) visitor.y = movedY.y;
+    }
 
     // 3. ROTATION: turn smoothly to face the direction of the controls
     const target = Math.atan2(iy, ix);
@@ -1971,7 +1979,7 @@ let lastTime = null;
 
 function animateRoute(now) {
     // dt = seconds since the last frame (capped, so a paused tab doesn't make a big jump)
-    const dt = lastTime === null ? 0 : Math.min((now - lastTime) / 1000, 0.05);
+    const dt = lastTime === null ? 0 : Math.min((now - lastTime) / 1000, 0.1);
     lastTime = now;
 
     dashOffset += 0.5;
