@@ -34,20 +34,21 @@ canvas {
     --zoo-font: "Trebuchet MS", "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
 }
 
-/* ---------- Hanging wooden title sign ---------- */
+/* ---------- Hanging wooden title sign (small, so it never hides the walking path) ---------- */
 
 .zoo-title {
     position: fixed;
-    top: calc(18px + env(safe-area-inset-top, 0px));
-    left: calc(14px + env(safe-area-inset-left, 0px));
+    top: calc(8px + env(safe-area-inset-top, 0px));
+    left: calc(8px + env(safe-area-inset-left, 0px));
     z-index: 4;
 
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 6px;
 
-    max-width: calc(100vw - 28px);
-    padding: 8px 18px 9px 10px;
+    width: max-content;
+    max-width: calc(100vw - 16px);
+    padding: 3px 10px 4px 5px;
 
     color: var(--cream);
     font-family: var(--zoo-font);
@@ -56,13 +57,13 @@ canvas {
     background:
         repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.08) 0 2px, transparent 2px 54px),
         linear-gradient(180deg, #96663a, var(--wood-dark));
-    border: 3px solid var(--wood-edge);
-    border-radius: 14px;
+    border: 2px solid var(--wood-edge);
+    border-radius: 8px;
     box-shadow:
-        0 8px 18px rgba(0, 0, 0, 0.3),
-        inset 0 2px 0 rgba(255, 255, 255, 0.2);
+        0 3px 8px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
 
-    transform-origin: 50% -18px;           /* swings from the ropes */
+    transform-origin: 50% -10px;           /* swings from the ropes */
     pointer-events: none;
 
     /* drops in, then sways slowly */
@@ -76,54 +77,56 @@ canvas {
 .zoo-title::after {
     content: "";
     position: absolute;
-    top: -20px;
-    width: 3px;
-    height: 18px;
+    top: -9px;
+    width: 2px;
+    height: 8px;
     background: #5b3d20;
 }
-.zoo-title::before { left: 24px; }
-.zoo-title::after  { right: 24px; }
+.zoo-title::before { left: 14px; }
+.zoo-title::after  { right: 14px; }
 
 .zoo-title-icon {
     flex: none;
-    width: 38px;
-    height: 38px;
+    width: 22px;
+    height: 22px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 19px;
+    font-size: 11px;
     background: var(--leaf);
-    border: 3px solid var(--cream);
+    border: 2px solid var(--cream);
     border-radius: 50%;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .zoo-title-text h1 {
     margin: 0;
-    font-size: clamp(30px, 4.2vw, 22px);
+    font-size: 13px;
     font-weight: 800;
-    line-height: 1.15;
-    letter-spacing: 0.3px;
-    text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+    line-height: 1.1;
+    letter-spacing: 0.2px;
+    white-space: nowrap;
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
 }
 
 .zoo-title-text p {
-    margin: 3px 0 0;
-    font-size: clamp(10px, 2.6vw, 12px);
+    margin: 2px 0 0;
+    font-size: 7px;
     font-weight: 700;
-    letter-spacing: 0.22em;
+    letter-spacing: 0.16em;
+    white-space: nowrap;
     text-transform: uppercase;
     color: #ffd9a0;
 }
 
 @keyframes signDrop {
-    from { opacity: 0; transform: translateY(-90px) rotate(-8deg); }
+    from { opacity: 0; transform: translateY(-60px) rotate(-8deg); }
     to   { opacity: 1; transform: none; }
 }
 
 @keyframes signSway {
-    0%, 100% { transform: rotate(-1.4deg); }
-    50%      { transform: rotate(1.4deg); }
+    0%, 100% { transform: rotate(-1.2deg); }
+    50%      { transform: rotate(1.2deg); }
 }
 
 /* ---------- Back button (wooden, top right) ---------- */

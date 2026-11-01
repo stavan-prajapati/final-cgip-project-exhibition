@@ -276,8 +276,10 @@ const walkways = [
                 [1080, 543], [1080, 268], [810, 268], [810, 205]]),
 
     // 2. and 3. Short side paths leading to the cages (dead ends).
-    curvedLine([[933, 543], [933, 600]]),
-    curvedLine([[1080, 543], [1080, 610]])
+    // They start a little INSIDE the cage path (y = 540 / y = 500, not on the corner itself),
+    // so they overlap it and join it with no gap, even where the cage path turns a rounded corner.
+    curvedLine([[933, 540], [933, 600]]),
+    curvedLine([[1080, 500], [1080, 610]])
 ];
 
 // Which ground "way" each walkway belongs to (walkways 1, 2 and 3 are all connected on the ground)
@@ -293,12 +295,14 @@ const bridge = (function () {
 })();
 
 // ---------- Wooden deck: the part of the walkway that is a bridge ----------
-// Dome 1 and dome 2 are wooden decks. The entry stretch (from y = 578 up to y = 500) and
-// everything from the end of dome 2 onwards (cage path, side paths, exit) stay ground tiles.
+// Dome 1 and dome 2 are wooden decks. The entry stretch (from y = 578 up to y = 500) stays ground tiles.
+// Dome 2's deck runs down its tail and ends a little ABOVE the bend (sketch x = 745, y = 492), on the straight part.
+// From there on (the bend, cage path, side paths, exit) it is ground tiles,
+// and a dark beam across the path marks the step from the wooden deck onto the tiles.
 // To make a stretch longer or shorter, change the sketch point used below.
 const deckLines = [
     sliceLine(walkways[0], distanceAlong(walkways[0], canvaPoint(700, 500)), Infinity),
-    sliceLine(walkways[1], 0, distanceAlong(walkways[1], canvaPoint(745, 500)))
+    sliceLine(walkways[1], 0, distanceAlong(walkways[1], canvaPoint(745, 492)))
 ];
 
 // ---------- Blue dotted guide line ----------
@@ -312,7 +316,30 @@ const mainRoute = routeToBridge.concat(
     [{ x: routeFromBridge[0].x, y: routeToBridge[routeToBridge.length - 1].y }],   // straight along the bridge
     routeFromBridge
 );
-const guideRoutes = [mainRoute, walkways[2], walkways[3]];   // remove the last two to hide the cage branches
+// The dotted branches into the cages must start ON the blue line, so the line looks joined.
+// (nearestOnLine finds the point of the main line that is closest to the place where the side path leaves.)
+function nearestOnLine(line, p) {
+    let best = Infinity, bestPoint = line[0];
+    for (let i = 0; i < line.length - 1; i++) {
+        const a = line[i], b = line[i + 1];
+        const len2 = (b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y);
+        let t = len2 === 0 ? 0 : ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / len2;
+        t = Math.max(0, Math.min(1, t));
+        const q = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+        const d = Math.hypot(p.x - q.x, p.y - q.y);
+        if (d < best) { best = d; bestPoint = q; }
+    }
+    return bestPoint;
+}
+// from the main line, to the corner where the side path starts, then down the side path (with a soft bend)
+function cageBranch(startSketchPoint, endSketchPoint) {
+    const start = canvaPoint(startSketchPoint[0], startSketchPoint[1]);
+    const end = canvaPoint(endSketchPoint[0], endSketchPoint[1]);
+    return roundCorners([nearestOnLine(mainRoute, start), start, end], 40);
+}
+const cageBranch1 = cageBranch([933, 543], [933, 600]);
+const cageBranch2 = cageBranch([1080, 543], [1080, 610]);
+const guideRoutes = [mainRoute, cageBranch1, cageBranch2];   // remove the last two to hide the cage branches
 
 // ---------- View box: the part of the map that is fitted to the screen ----------
 // Worked out from the walkways, with a free grass border around them.
@@ -1335,7 +1362,8 @@ function drawFrame() {
 //           so pick a spot on the grass just NEXT to a path (about 35 px from the path's center line,
 //           and with free grass below it, because the name label is drawn under the badge).
 const birdSpots = [
-    { id: "african-grey-parrot", point: canvaPoint(510, 284) }      // inside dome 1, just below its north path
+    { id: "african-grey-parrot",    point: canvaPoint(831, 585) },
+    { id: "blue-and-golden-macaw",  point: canvaPoint(780, 583) }
 ];
 
 const BIRD_TRIGGER = 80;          // how close the visitor must be (map units) to get the popup
@@ -1354,7 +1382,8 @@ function drawBirdSpots() {
     ctx.save();
     ctx.setTransform(pixelRatioNow, 0, 0, pixelRatioNow, 0, 0);
 
-    for (const spot of birdSpots) {
+    const placedMarkers = [];
+    for (const spot of placePreview ? birdSpots.concat([placePreview]) : birdSpots) {
         const p = spot.point;
         const sx = (viewMatrix[0] * p.x + viewMatrix[2] * p.y + viewMatrix[4]) / pixelRatioNow;
         const sy = (viewMatrix[1] * p.x + viewMatrix[3] * p.y + viewMatrix[5]) / pixelRatioNow;
@@ -1383,7 +1412,12 @@ function drawBirdSpots() {
         const name = birdName(spot.id);
         ctx.font = "700 12px 'Trebuchet MS', 'Segoe UI', sans-serif";
         const w = ctx.measureText(name).width + 16;
-        const lx = sx - w / 2, ly = sy + R + 6, lh = 20;
+        // the name goes under the badge; if another bird stands close by, it goes ABOVE the badge instead,
+        // so two neighbouring names never print on top of each other
+        const crowded = placedMarkers.some(function (q) { return Math.abs(q.x - sx) < 150 && Math.abs(q.y - sy) < 56; });
+        placedMarkers.push({ x: sx, y: sy });
+        const lh = 20;
+        const lx = sx - w / 2, ly = crowded ? sy - R - 6 - lh : sy + R + 6;
         ctx.fillStyle = "#6f4524";
         ctx.beginPath();
         ctx.moveTo(lx + 8, ly);
@@ -1418,9 +1452,11 @@ birdPopup.querySelector("button").addEventListener("click", function () {
 });
 
 function updateBirdPopup() {
-    let found = null;
+    // the CLOSEST bird within range wins (two birds can stand near each other)
+    let found = null, best = BIRD_TRIGGER;
     for (const spot of birdSpots) {
-        if (Math.hypot(visitor.x - spot.point.x, visitor.y - spot.point.y) <= BIRD_TRIGGER) { found = spot.id; break; }
+        const dist = Math.hypot(visitor.x - spot.point.x, visitor.y - spot.point.y);
+        if (dist <= best) { best = dist; found = spot.id; }
     }
     if (found === birdNearby) return;              // nothing changed
     birdNearby = found;
@@ -1430,6 +1466,46 @@ function updateBirdPopup() {
     } else {
         birdPopup.style.display = "none";
     }
+}
+
+// ---------- Placement helper: open aviary.html?place ----------
+// Click the map where a bird should stand. A "New spot" marker appears there and a panel shows the
+// exact line to paste into birdSpots (click the panel to copy it). Nothing is saved by itself.
+let placePreview = null;
+
+if (new URLSearchParams(location.search).has("place")) {
+    const panel = document.createElement("div");
+    panel.style.cssText =
+        "position:fixed; left:14px; bottom:calc(14px + env(safe-area-inset-bottom, 0px)); z-index:6;" +
+        "max-width:min(420px, calc(100vw - 28px)); padding:12px 14px; cursor:pointer;" +
+        "color:#fff; font:600 13px/1.45 'Trebuchet MS', 'Segoe UI', sans-serif;" +
+        "background:rgba(38,50,56,0.94); border-radius:14px; box-shadow:0 8px 22px rgba(0,0,0,0.35);";
+    panel.innerHTML = "<b>Placement helper</b><br>Click the map where the bird should stand.";
+    document.body.appendChild(panel);
+
+    canvas.addEventListener("click", function (e) {
+        // screen -> map: undo the view matrix (it also covers the quarter turn on phones)
+        const rect = canvas.getBoundingClientRect();
+        const X = (e.clientX - rect.left) * (canvas.width / rect.width);
+        const Y = (e.clientY - rect.top) * (canvas.height / rect.height);
+        const [a, b, c, d, tx, ty] = viewMatrix;
+        const det = a * d - b * c;
+        const mx = (d * (X - tx) - c * (Y - ty)) / det;
+        const my = (-b * (X - tx) + a * (Y - ty)) / det;
+
+        // map -> sketch pixels (the numbers canvaPoint() takes)
+        const sx = Math.round(mx / CANVA_SCALE + CANVA_ORIGIN.x);
+        const sy = Math.round(my / CANVA_SCALE + CANVA_ORIGIN.y);
+
+        placePreview = { id: "New spot", point: canvaPoint(sx, sy) };
+        const line = '{ id: "BIRD-ID", point: canvaPoint(' + sx + ', ' + sy + ') },';
+        panel.innerHTML = "<b>Paste this into birdSpots</b> (click here to copy):<br>" +
+                          "<code style='color:#ffd54f'>" + line + "</code><br>" +
+                          "Change BIRD-ID to the bird's id from data/aviary-data.js.";
+        panel.onclick = function () {
+            if (navigator.clipboard) navigator.clipboard.writeText(line).catch(function () {});
+        };
+    });
 }
 
 // Draw complete map (order matters: later drawings appear on top)
