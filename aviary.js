@@ -265,9 +265,11 @@ const view = (function () {
 })();
 
 // This map is wide and a phone held upright is tall. If this is true, the map is turned a
-// quarter turn on such a screen so it is drawn bigger (it then looks sideways).
+// quarter turn on such a screen so it is drawn much bigger. The controls are turned with it,
+// so pushing the joystick UP still moves the pointer UP on the screen.
+// Desktop and tablets in landscape always show the map upright.
 // false = the map always stays upright, on every device.
-const ROTATE_ON_PORTRAIT = false;
+const ROTATE_ON_PORTRAIT = true;
 
 // ======================================================================
 // WALKABLE AREA: ground level and bridge level
