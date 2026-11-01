@@ -171,8 +171,30 @@ const PATH_WIDTH = 60;               // same road width as the main map
 const CANVA_SCALE = 1.8;             // 1 sketch pixel = 1.8 map units  (bigger = bigger map)
 const CANVA_ORIGIN = { x: 380, y: 200 };   // this sketch point becomes map (0, 0)
 
+
+// ---------- Wider bird walk ----------
+// The part of the map from the dome 2 tail (sketch x = 745) to the right edge of the cage area (x = 1080)
+// is stretched sideways, so the bottom path is LONGER and every bird along it gets more room.
+// Everything (walkways, blue dots, bird spots) is stretched together, and you keep writing the SAME sketch
+// numbers in canvaPoint(x, y). 1 = no stretch, 1.35 = 35% longer. (Make it bigger for even more room.)
+const STRETCH_FROM = 745;
+const STRETCH_TO = 1080;
+const STRETCH = 1.35;
+
+function stretchX(x) {
+    if (x <= STRETCH_FROM) return x;
+    if (x <= STRETCH_TO) return STRETCH_FROM + (x - STRETCH_FROM) * STRETCH;
+    return x + (STRETCH_TO - STRETCH_FROM) * (STRETCH - 1);          // right of the cage area: just moved over
+}
+function unstretchX(x) {                                               // the way back (used by the ?place helper)
+    const end = STRETCH_FROM + (STRETCH_TO - STRETCH_FROM) * STRETCH;
+    if (x <= STRETCH_FROM) return x;
+    if (x <= end) return STRETCH_FROM + (x - STRETCH_FROM) / STRETCH;
+    return x - (STRETCH_TO - STRETCH_FROM) * (STRETCH - 1);
+}
+
 function canvaPoint(x, y) {
-    return { x: (x - CANVA_ORIGIN.x) * CANVA_SCALE, y: (y - CANVA_ORIGIN.y) * CANVA_SCALE };
+    return { x: (stretchX(x) - CANVA_ORIGIN.x) * CANVA_SCALE, y: (y - CANVA_ORIGIN.y) * CANVA_SCALE };
 }
 function canvaLine(list) {
     return list.map(function (p) { return canvaPoint(p[0], p[1]); });
@@ -1362,31 +1384,78 @@ function drawFrame() {
 //           so pick a spot on the grass just NEXT to a path (about 35 px from the path's center line,
 //           and with free grass below it, because the name label is drawn under the badge).
 const birdSpots = [
-    { id: "african-grey-parrot",    point: canvaPoint(831, 585) },
-    { id: "blue-and-golden-macaw",  point: canvaPoint(780, 583) }
+    // --- bottom row (all y = 576) ---
+    { id: "blue-and-golden-macaw",  point: canvaPoint(771, 576), tidy: true },
+    { id: "african-grey-parrot",    point: canvaPoint(813, 576), tidy: true },
+    { id: "scarlet-macaw",          point: canvaPoint(852, 576), tidy: true },
+    { id: "plum-headed-parakeet",   point: canvaPoint(902, 576), tidy: true },
+    { id: "budgerigar",             point: canvaPoint(965, 576) },
+    { id: "peach-faced-lovebird",   point: canvaPoint(996, 576) },
+    { id: "cockatiel",              point: canvaPoint(1055, 576) },
+    // --- right column (all x = 1114, the pigeon is the corner) ---
+    { id: "blue-crowned-pigeon",    point: canvaPoint(1114, 576) },
+    { id: "diamond-dove",           point: canvaPoint(1114, 536) },
+    { id: "zebra-finch",            point: canvaPoint(1114, 492) },
+    { id: "golden-pheasant",        point: canvaPoint(1114, 430) },
+    { id: "ring-necked-pheasant",   point: canvaPoint(1114, 329) },
+    // --- top row (all y = 234) ---
+    { id: "white-peacock",          point: canvaPoint(1055, 234) },
+    { id: "indian-peafowl",         point: canvaPoint(975, 234) },
+    { id: "red-junglefowl",         point: canvaPoint(891, 234) },
+    { id: "indian-grey-hornbill",   point: canvaPoint(844, 234) },
+    // --- inside dome 2 (eclectus and sun conure y = 304, swans y = 432) ---
+    { id: "eclectus-parrot",        point: canvaPoint(772, 304) },
+    { id: "sun-conure",             point: canvaPoint(842, 304) },
+    { id: "white-swan",             point: canvaPoint(855, 432) },
+    { id: "black-swan",             point: canvaPoint(941, 432) },
+    // --- dome 1 side ---
+    { id: "painted-stork",          point: canvaPoint(646, 451) },
+    { id: "comb-duck",              point: canvaPoint(609, 304) },
+    { id: "rosy-pelican",           point: canvaPoint(538, 365) },
+    { id: "common-crane",           point: canvaPoint(455, 216) },
+    { id: "indian-spotted-billed-duck", point: canvaPoint(441, 359) }
 ];
 
+// Make sure the view box also holds every bird marker (plus room for its badge), so none of them
+// ever touches the wooden frame, whatever the screen size.
+(function () {
+    const room = 48;                     // map units kept free around a bird spot
+    let minX = view.x, maxX = view.x + view.w, minY = view.y, maxY = view.y + view.h;
+    for (const spot of birdSpots) {
+        minX = Math.min(minX, spot.point.x - room); maxX = Math.max(maxX, spot.point.x + room);
+        minY = Math.min(minY, spot.point.y - room); maxY = Math.max(maxY, spot.point.y + room);
+    }
+    view.x = minX; view.y = minY; view.w = maxX - minX; view.h = maxY - minY;
+})();
+
 const BIRD_TRIGGER = 80;          // how close the visitor must be (map units) to get the popup
-const BIRD_BADGE_RADIUS = 17;     // size of the round badge (screen pixels)
 
 function birdName(id) {
     const bird = (typeof aviaryBirds !== "undefined") && aviaryBirds.find(function (b) { return b.id === id; });
     return bird ? bird.name : id;
 }
 
+// ---------- Sizes that follow the screen ----------
+// On a big laptop screen the badge is full size; on a small phone it shrinks (and so does the name text),
+// so the crowded birds at the start of the walk still fit.
+function birdBadgeRadius() { return Math.max(8.5, Math.min(17, viewScale * 20)); }     // screen pixels
+function labelFontPx()     { return viewScale < 0.45 ? 9.5 : (viewScale < 0.6 ? 10.5 : (viewScale < 0.8 ? 11 : 12)); }
+function labelFont()       { return "700 " + labelFontPx() + "px 'Trebuchet MS', 'Segoe UI', sans-serif"; }
+function labelLineHeight() { return Math.round(labelFontPx() * 1.17); }
+
 // ---------- Bird name label (a small stacked sign) ----------
 // The colour is NOT brown, so the label never blends into the wooden bridge. Change these 2 colours freely.
 const LABEL_COLOR = "#17575f";     // deep teal
 const LABEL_EDGE  = "#0d3b41";     // darker edge
-const LABEL_FONT  = "700 12px 'Trebuchet MS', 'Segoe UI', sans-serif";
-const LABEL_LINE  = 14;            // height of one line of text (screen pixels)
-const LABEL_ONE_LINE_MAX = 84;     // a name narrower than this stays on ONE line
+const LABEL_GAP   = 5;             // free space between the badge and its name (screen pixels)
+const SCREEN_EDGE = 5;             // markers stay at least this far inside the board
 
 // Split a name into 1 to 3 short lines. Breaks are allowed at spaces and after hyphens, and the
 // breaks are chosen so the longest line is as short as possible ("Blue-and-" / "Golden Macaw").
-function stackName(name) {
+function stackName(name, limit) {
+    const k = labelFontPx() / 12;                       // smaller text on small screens
     ctx.save();
-    ctx.font = LABEL_FONT;
+    ctx.font = labelFont();
     const width = function (t) { return ctx.measureText(t).width; };
 
     // pieces + what goes between them ("" after a hyphen, " " after a space)
@@ -1406,7 +1475,22 @@ function stackName(name) {
     };
 
     let best = [name];
-    if (width(name) > LABEL_ONE_LINE_MAX && pieces.length > 1) {
+    if (limit && pieces.length > 1) {
+        // fixed width wanted: use the FEWEST lines whose longest line still fits, otherwise the narrowest split
+        const options = [[name]];
+        const n = pieces.length;
+        for (let i = 1; i < n; i++) options.push([join(0, i), join(i, n)]);
+        for (let i = 1; i < n; i++) for (let j = i + 1; j < n; j++) options.push([join(0, i), join(i, j), join(j, n)]);
+        const wide = function (l) { return Math.max.apply(null, l.map(width)); };
+        let pick = null;
+        for (const o of options) {
+            if (wide(o) <= limit && (!pick || o.length < pick.length || (o.length === pick.length && wide(o) < wide(pick)))) pick = o;
+        }
+        if (!pick) pick = options.reduce(function (a, b) { return wide(b) < wide(a) ? b : a; });
+        ctx.restore();
+        return pick;
+    }
+    if (width(name) > 84 * k && pieces.length > 1) {
         let bestMax = Infinity;
         const n = pieces.length;
         for (let i = 1; i < n; i++) {                       // 2 lines
@@ -1414,7 +1498,7 @@ function stackName(name) {
             const m = Math.max(width(l[0]), width(l[1]));
             if (m < bestMax) { bestMax = m; best = l; }
         }
-        if (bestMax > 100) {                                // still wide: try 3 lines
+        if (bestMax > 100 * k) {                            // still wide: try 3 lines
             for (let i = 1; i < n; i++) {
                 for (let j = i + 1; j < n; j++) {
                     const l = [join(0, i), join(i, j), join(j, n)];
@@ -1428,23 +1512,231 @@ function stackName(name) {
     return best;
 }
 
+// ---------- Screen <-> map ----------
+function mapToScreen(p) {
+    return {
+        x: (viewMatrix[0] * p.x + viewMatrix[2] * p.y + viewMatrix[4]) / pixelRatioNow,
+        y: (viewMatrix[1] * p.x + viewMatrix[3] * p.y + viewMatrix[5]) / pixelRatioNow
+    };
+}
+function screenToMap(x, y) {
+    const X = x * pixelRatioNow, Y = y * pixelRatioNow;
+    const [a, b, c, d, tx, ty] = viewMatrix;
+    const det = a * d - b * c;
+    return { x: (d * (X - tx) - c * (Y - ty)) / det, y: (-b * (X - tx) + a * (Y - ty)) / det };
+}
+
+// ---------- Label placement ----------
+// The markers are crowded in places, so every name tries several spots around its badge
+// (below, above, right, left, then further out with a thin line back to the badge) and takes the first
+// one that: stays inside the board, does not cover another badge or name, and covers as little
+// walkway as possible. It is worked out ONCE per screen size (in resizeCanvas), not every frame.
+
+function buildBirdItem(spot, textLimit) {
+    const R = birdBadgeRadius();
+    const p = mapToScreen(spot.point);
+    // the badge itself always stays inside the board, even on a very small screen
+    const sx = Math.max(board.x + R + SCREEN_EDGE, Math.min(p.x, board.x + board.w - R - SCREEN_EDGE));
+    const sy = Math.max(board.y + R + SCREEN_EDGE, Math.min(p.y, board.y + board.h - R - SCREEN_EDGE));
+
+    const lines = stackName(birdName(spot.id), textLimit);
+    ctx.save();
+    ctx.font = labelFont();
+    let w = 0;
+    for (const line of lines) w = Math.max(w, ctx.measureText(line).width);
+    ctx.restore();
+    const pk = labelFontPx() / 12;                          // less padding on small screens
+    w += 14 * pk;
+    const h = lines.length * labelLineHeight() + 7 * pk;
+    return { id: spot.id, sx: sx, sy: sy, R: R, lines: lines, w: w, h: h, lx: sx - w / 2, ly: sy + R + LABEL_GAP, leader: null, placed: false, tidy: !!spot.tidy };
+}
+
+function circleHitsRect(cx, cy, r, rx, ry, rw, rh) {
+    const nx = Math.max(rx, Math.min(cx, rx + rw));
+    const ny = Math.max(ry, Math.min(cy, ry + rh));
+    return Math.hypot(cx - nx, cy - ny) < r;
+}
+function rectsHit(ax, ay, aw, ah, bx, by, bw, bh, pad) {
+    return ax < bx + bw + pad && ax + aw + pad > bx && ay < by + bh + pad && ay + ah + pad > by;
+}
+function labelOnWalkway(x, y, w, h) {                  // share (0 to 1) of the label that lies over a walkway
+    let hits = 0, total = 0;
+    for (let i = 0; i <= 5; i++) {
+        for (let j = 0; j <= 2; j++) {
+            const m = screenToMap(x + w * i / 5, y + h * j / 2);
+            total++;
+            if (pointOnBridge(m.x, m.y) || pointOnWay(0, m.x, m.y) || pointOnWay(1, m.x, m.y)) hits++;
+        }
+    }
+    return hits / total;
+}
+
+// Screen areas the names must stay out of: the wooden sign and the Back button
+function keepOutAreas() {
+    const out = [];
+    for (const sel of [".zoo-title", ".zoo-back"]) {
+        const el = document.querySelector(sel);
+        if (el) out.push({ x: el.offsetLeft - 4, y: el.offsetTop - 12, w: el.offsetWidth + 8, h: el.offsetHeight + 16 });
+    }
+    return out;
+}
+
+function placeLabel(item, all) {
+    const keepOut = keepOutAreas();
+    const R = item.R, w = item.w, h = item.h, g = LABEL_GAP;
+    const stepY = h + 3, stepX = w + 3;
+    const cx = item.sx - w / 2, cy = item.sy - h / 2;
+    const cands = [];
+    const add = function (lx, ly, cost) { cands.push({ lx: lx, ly: ly, cost: cost }); };
+
+    // next to the badge
+    add(cx, item.sy + R + g, 0);                          // below
+    add(cx, item.sy - R - g - h, 8);                      // above
+    add(item.sx + R + g, cy, 12);                         // right
+    add(item.sx - R - g - w, cy, 12);                     // left
+    // slid sideways (still just below / above)
+    for (const dx of [-0.55, 0.55, -1.1, 1.1]) {
+        add(cx + dx * w, item.sy + R + g, 18 + Math.abs(dx) * 4);
+        add(cx + dx * w, item.sy - R - g - h, 24 + Math.abs(dx) * 4);
+    }
+    // further out (a thin line leads back to the badge)
+    for (let tier = 1; tier <= 4; tier++) {
+        add(cx, item.sy + R + g + tier * stepY, 30 + tier * 12);
+        add(cx, item.sy - R - g - h - tier * stepY, 36 + tier * 12);
+        add(item.sx + R + g + tier * stepX, cy, 40 + tier * 12);
+        add(item.sx - R - g - w - tier * stepX, cy, 40 + tier * 12);
+        for (const dy of [-0.6, 0.6]) {
+            add(item.sx + R + g + tier * stepX, cy + dy * h, 46 + tier * 12);
+            add(item.sx - R - g - w - tier * stepX, cy + dy * h, 46 + tier * 12);
+        }
+        for (const dx of [-0.55, 0.55, -1.1, 1.1]) {
+            add(cx + dx * w, item.sy + R + g + tier * stepY, 50 + tier * 12);
+            add(cx + dx * w, item.sy - R - g - h - tier * stepY, 56 + tier * 12);
+        }
+    }
+
+    const x0 = board.x + SCREEN_EDGE, y0 = board.y + SCREEN_EDGE;
+    const x1 = board.x + board.w - SCREEN_EDGE, y1 = board.y + board.h - SCREEN_EDGE;
+
+    let best = null, bestScore = Infinity;
+    for (const c of cands) {
+        let score = c.cost;
+        if (c.lx < x0 || c.ly < y0 || c.lx + w > x1 || c.ly + h > y1) score += 3000;   // would leave the board
+
+        for (const k of keepOut) if (rectsHit(c.lx, c.ly, w, h, k.x, k.y, k.w, k.h, 0)) score += 6000;       // under the sign / Back button
+        for (const o of all) {
+            if (o !== item && circleHitsRect(o.sx, o.sy, o.R + 3, c.lx, c.ly, w, h)) score += 1500;        // covers another badge
+            if (o !== item && o.placed && rectsHit(c.lx, c.ly, w, h, o.lx, o.ly, o.w, o.h, 2)) score += 1500;   // covers another name
+        }
+
+        // thin line back to the badge, when the name is not right next to it
+        const nx = Math.max(c.lx, Math.min(item.sx, c.lx + w));
+        const ny = Math.max(c.ly, Math.min(item.sy, c.ly + h));
+        const far = Math.hypot(nx - item.sx, ny - item.sy) > R + g + 2;
+        score += Math.max(0, Math.hypot(nx - item.sx, ny - item.sy) - R - g) * 0.35;      // shorter lines look tidier
+        if (far) {
+            const len = Math.hypot(nx - item.sx, ny - item.sy);
+            for (let i = 1; i <= 10; i++) {
+                const px = item.sx + (nx - item.sx) * (R + 2 + (len - R - 2) * i / 10) / len;
+                const py = item.sy + (ny - item.sy) * (R + 2 + (len - R - 2) * i / 10) / len;
+                const mp = screenToMap(px, py);
+                if (pointOnBridge(mp.x, mp.y) || pointOnWay(0, mp.x, mp.y) || pointOnWay(1, mp.x, mp.y)) score += 9;   // a line over the walkway looks messy
+                let hit = false;
+                for (const o of all) {
+                    if (o === item) continue;
+                    if (Math.hypot(px - o.sx, py - o.sy) < o.R + 2) hit = true;
+                    if (o.placed && px > o.lx - 1 && px < o.lx + o.w + 1 && py > o.ly - 1 && py < o.ly + o.h + 1) hit = true;
+                }
+                if (hit) { score += 800; break; }
+            }
+        }
+
+        score += labelOnWalkway(c.lx, c.ly, w, h) * 380;       // prefer grass over the walkway
+
+        if (score < bestScore) { bestScore = score; best = { lx: c.lx, ly: c.ly, nx: nx, ny: ny, far: far }; }
+    }
+
+    // last safety: whatever was chosen is pushed fully inside the board
+    item.lx = Math.max(x0, Math.min(best.lx, x1 - w));
+    item.ly = Math.max(y0, Math.min(best.ly, y1 - h));
+    item.leader = best.far ? { x: Math.max(item.lx, Math.min(item.sx, item.lx + w)), y: Math.max(item.ly, Math.min(item.sy, item.ly + h)) } : null;
+    item.placed = true;
+}
+
+let birdLayout = [];
+
+function layoutBirdSpots() {
+    let items = birdSpots.map(function (spot) { return buildBirdItem(spot); });
+
+    // TIDY BIRDS (tidy: true in birdSpots): their names stand in ONE neat row, all at the same height right under
+    // the badges, each name wrapped to fit the space between its neighbours. (On a turned phone screen the
+    // row would run up and down, so there the normal placement is used.)
+    const tidy = items.filter(function (it) { return it.tidy; }).sort(function (a, b) { return a.sx - b.sx; });
+    if (!viewRotated && tidy.length > 1) {
+        const pk = labelFontPx() / 12;
+        let ok = true;
+        tidy.forEach(function (it, i) {
+            const left = i > 0 ? it.sx - tidy[i - 1].sx : Infinity;
+            const right = i < tidy.length - 1 ? tidy[i + 1].sx - it.sx : Infinity;
+            const room = Math.min(left, right) - 8;                       // the whole label may be this wide
+            if (room < 50) ok = false;
+            it.limit = room - 14 * pk;
+        });
+        if (ok) {
+            const rowY = Math.max.apply(null, tidy.map(function (it) { return it.sy + it.R + LABEL_GAP; }));
+            for (const it of tidy) {
+                const fresh = buildBirdItem(birdSpots.find(function (b) { return b.id === it.id; }), it.limit);
+                it.lines = fresh.lines; it.w = fresh.w; it.h = fresh.h;
+                it.lx = it.sx - it.w / 2; it.ly = rowY;
+                it.leader = null; it.placed = true; it.fixed = true;
+            }
+        }
+    }
+
+    // the most crowded birds choose their label spot first
+    const crowd = items.map(function (a) {
+        return items.filter(function (b) { return b !== a && Math.hypot(a.sx - b.sx, a.sy - b.sy) < 130; }).length;
+    });
+    const order = items.map(function (_, i) { return i; }).sort(function (a, b) { return crowd[b] - crowd[a]; });
+    for (const i of order) { if (!items[i].fixed) placeLabel(items[i], items); }
+    // second and third look: every name is re-placed once the others have settled, which untangles leftovers
+    for (let pass = 0; pass < 4; pass++) {
+        for (const i of order) { if (items[i].fixed) continue; items[i].placed = false; placeLabel(items[i], items); }
+    }
+    return items;
+}
+
 // The marker is drawn in SCREEN pixels, so the badge and the name always stay upright and the same
 // size, even when the map is turned a quarter turn on a phone.
 function drawBirdSpots() {
     const t = performance.now() / 1000;
+    const items = birdLayout.slice();
+    if (placePreview) {                                      // the "New spot" marker of the placement helper
+        const extra = buildBirdItem(placePreview);
+        placeLabel(extra, items.concat([extra]));
+        items.push(extra);
+    }
 
     ctx.save();
     ctx.setTransform(pixelRatioNow, 0, 0, pixelRatioNow, 0, 0);
 
-    const placedMarkers = [];
-    for (const spot of placePreview ? birdSpots.concat([placePreview]) : birdSpots) {
-        const p = spot.point;
-        const sx = (viewMatrix[0] * p.x + viewMatrix[2] * p.y + viewMatrix[4]) / pixelRatioNow;
-        const sy = (viewMatrix[1] * p.x + viewMatrix[3] * p.y + viewMatrix[5]) / pixelRatioNow;
-        const R = BIRD_BADGE_RADIUS;
+    // 1. thin lines from a badge to its name (only when the name had to move away)
+    ctx.strokeStyle = LABEL_EDGE;
+    ctx.lineWidth = 1.5;
+    for (const it of items) {
+        if (!it.leader) continue;
+        ctx.beginPath();
+        ctx.moveTo(it.sx, it.sy);
+        ctx.lineTo(it.leader.x, it.leader.y);
+        ctx.stroke();
+    }
+
+    // 2. badges
+    const pulse = (t * 0.8) % 1;
+    for (const it of items) {
+        const R = it.R, sx = it.sx, sy = it.sy;
 
         // soft pulsing ring
-        const pulse = (t * 0.8) % 1;
         ctx.strokeStyle = "rgba(63, 143, 74, " + ((1 - pulse) * 0.55) + ")";
         ctx.lineWidth = 3;
         ctx.beginPath(); ctx.arc(sx, sy, R + 3 + pulse * 12, 0, Math.PI * 2); ctx.stroke();
@@ -1456,36 +1748,24 @@ function drawBirdSpots() {
         ctx.beginPath(); ctx.arc(sx, sy, R + 2, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = "#fff4d6";
         ctx.beginPath(); ctx.arc(sx, sy, R - 1, 0, Math.PI * 2); ctx.fill();
-        ctx.font = "18px sans-serif";
+        ctx.font = Math.round(R * 1.06) + "px sans-serif";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillStyle = "#000";
         ctx.fillText("🐦", sx, sy + 1);
+    }
 
-        // name label: a small STACKED sign (two or three short lines), so it stays narrow
-        const lines = stackName(birdName(spot.id));
-        ctx.font = LABEL_FONT;
-        let w = 0;
-        for (const line of lines) w = Math.max(w, ctx.measureText(line).width);
-        w += 16;
-        const lh = lines.length * LABEL_LINE + 8;
-        // the name goes under the badge; if another bird stands close by, it goes ABOVE the badge instead,
-        // so two neighbouring names never print on top of each other
-        const crowded = placedMarkers.some(function (q) { return Math.abs(q.x - sx) < 110 && Math.abs(q.y - sy) < 90; });
-        placedMarkers.push({ x: sx, y: sy });
-        let lx = sx - w / 2, ly = crowded ? sy - R - 6 - lh : sy + R + 6;
-        // keep the whole label inside the screen (important on a phone)
-        lx = Math.max(6, Math.min(lx, window.innerWidth - w - 6));
-        ly = Math.max(6, Math.min(ly, window.innerHeight - lh - 6));
-        const cx = lx + w / 2;
-
+    // 3. names (on top of every badge and line)
+    ctx.font = labelFont();
+    for (const it of items) {
+        const lx = it.lx, ly = it.ly, w = it.w, lh = it.h;
         ctx.fillStyle = LABEL_COLOR;
         ctx.beginPath();
-        ctx.moveTo(lx + 8, ly);
-        ctx.arcTo(lx + w, ly, lx + w, ly + lh, 8);
-        ctx.arcTo(lx + w, ly + lh, lx, ly + lh, 8);
-        ctx.arcTo(lx, ly + lh, lx, ly, 8);
-        ctx.arcTo(lx, ly, lx + w, ly, 8);
+        ctx.moveTo(lx + 7, ly);
+        ctx.arcTo(lx + w, ly, lx + w, ly + lh, 7);
+        ctx.arcTo(lx + w, ly + lh, lx, ly + lh, 7);
+        ctx.arcTo(lx, ly + lh, lx, ly, 7);
+        ctx.arcTo(lx, ly, lx + w, ly, 7);
         ctx.closePath();
         ctx.fill();
         ctx.strokeStyle = LABEL_EDGE;
@@ -1494,8 +1774,8 @@ function drawBirdSpots() {
         ctx.fillStyle = "#fff4d6";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        for (let i = 0; i < lines.length; i++) {
-            ctx.fillText(lines[i], cx, ly + 4 + LABEL_LINE * (i + 0.5) + 0.5);
+        for (let i = 0; i < it.lines.length; i++) {
+            ctx.fillText(it.lines[i], lx + w / 2, ly + 3.5 * (labelFontPx() / 12) + labelLineHeight() * (i + 0.5) + 0.5);
         }
     }
     ctx.restore();
@@ -1559,7 +1839,7 @@ if (new URLSearchParams(location.search).has("place")) {
         const my = (-b * (X - tx) + a * (Y - ty)) / det;
 
         // map -> sketch pixels (the numbers canvaPoint() takes)
-        const sx = Math.round(mx / CANVA_SCALE + CANVA_ORIGIN.x);
+        const sx = Math.round(unstretchX(mx / CANVA_SCALE + CANVA_ORIGIN.x));
         const sy = Math.round(my / CANVA_SCALE + CANVA_ORIGIN.y);
 
         placePreview = { id: "New spot", point: canvaPoint(sx, sy) };
@@ -1620,14 +1900,23 @@ function resizeCanvas() {
     const freeW = screenWidth - 2 * margin;
     const freeH = screenHeight - 2 * margin;
 
+    // On a narrow screen the wooden sign (top) and the Back button (bottom) lie over the board, so the map is
+    // fitted into the free space between them. Then no bird marker can ever hide behind them.
+    const titleEl = document.querySelector(".zoo-title"), backEl = document.querySelector(".zoo-back");
+    const narrow = screenWidth <= 600;
+    const reserveTop = (narrow && titleEl) ? Math.max(0, titleEl.offsetTop + titleEl.offsetHeight + 8 - margin) : 0;
+    const reserveBottom = (narrow && backEl) ? Math.max(0, screenHeight - backEl.offsetTop + 40 - margin) : 0;
+    const fitH = freeH - reserveTop - reserveBottom;                    // height the map may use
+    const fitCenterY = margin + reserveTop + fitH / 2;                  // where its middle sits on the screen
+
     // The board: the whole screen minus the margin. The wooden frame is drawn in that margin.
     pixelRatioNow = pixelRatio;
     board = { x: margin, y: margin, w: freeW, h: freeH, band: Math.round(margin * 0.8) };
     buildOutside(screenWidth, screenHeight, pixelRatio);
 
     // How big can the map be drawn upright, and how big when turned a quarter turn?
-    const uprightScale = Math.min(freeW / view.w, freeH / view.h);
-    const turnedScale = Math.min(freeW / view.h, freeH / view.w);
+    const uprightScale = Math.min(freeW / view.w, fitH / view.h);
+    const turnedScale = Math.min(freeW / view.h, fitH / view.w);
 
     // Turn it only when that makes it clearly bigger (a tall phone screen)
     viewRotated = ROTATE_ON_PORTRAIT && turnedScale > uprightScale * 1.15;
@@ -1643,17 +1932,19 @@ function resizeCanvas() {
             0, pixelRatio * s,
             -pixelRatio * s, 0,
             pixelRatio * (screenWidth / 2 + s * cy),
-            pixelRatio * (screenHeight / 2 - s * cx)
+            pixelRatio * (fitCenterY - s * cx)
         ];
     } else {
         viewMatrix = [
             pixelRatio * s, 0,
             0, pixelRatio * s,
             pixelRatio * (screenWidth / 2 - s * cx),
-            pixelRatio * (screenHeight / 2 - s * cy)
+            pixelRatio * (fitCenterY - s * cy)
         ];
     }
     screenCtx.setTransform(viewMatrix[0], viewMatrix[1], viewMatrix[2], viewMatrix[3], viewMatrix[4], viewMatrix[5]);
+
+    birdLayout = layoutBirdSpots();      // badge + name positions for this screen size
 
     grassPattern = buildGrassPattern(pixelRatio);
     buildLayers();

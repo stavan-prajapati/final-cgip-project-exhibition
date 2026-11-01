@@ -260,6 +260,18 @@ const aviaryBirds = [
         weight: "Approx. 10–16 g", lifespan: "Approx. 5–10 years in captivity; varies",
         funFact: "Zebra Finches are widely studied because they learn songs, making them useful for research on vocal learning.",
         sources: ["iucn", "cornell", "adw"]
+    },
+    {
+        id: "common-crane", number: 26, name: "Common Crane", scientific: "Grus grus",
+        status: "LC", photo: "images/birds/common_crane.jpg", audio: "audio/common_crane.mp3",
+        habitat: "", diet: "", weight: "", lifespan: "", funFact: "",     // TODO: fill from your bird reference file
+        sources: ["iucn", "birdlife", "cornell"]
+    },
+    {
+        id: "indian-spotted-billed-duck", number: 27, name: "Indian Spotted-billed Duck", scientific: "Anas poecilorhyncha",
+        status: "LC", photo: "images/birds/indian_spotted_billed_duck.jpg", audio: "audio/indian_spotted_billed_duck.mp3",
+        habitat: "", diet: "", weight: "", lifespan: "", funFact: "",     // TODO: fill from your bird reference file
+        sources: ["iucn", "birdlife", "cornell"]
     }
 
 ];
