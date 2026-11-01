@@ -153,6 +153,22 @@ let viewScale = 1;
 let viewOffsetX = 0;
 let viewOffsetY = 0;
 
+// ---------- Map board: the framed area where the map is shown ----------
+// The map is drawn inside a wooden frame. Outside the frame is a forest (trees, bushes,
+// fireflies), so on a wide PC screen the map looks like a game board in a forest clearing.
+// On a phone the frame just hugs the screen and there is almost no forest to draw.
+const OUTSIDE_COLOR_TOP = "#78b062";      // forest floor around the board (top)
+const OUTSIDE_COLOR_BOTTOM = "#4b8648";   // (bottom)
+const FRAME_WOOD_LIGHT = "#a8743f";
+const FRAME_WOOD_DARK = "#7a4f2a";
+const FRAME_EDGE = "#4a2f18";
+const FRAME_HIGHLIGHT = "#d9ad72";
+
+// the board rectangle in MAP units, plus how thick the frame is (screen pixels)
+let boardX = VIEW_X, boardY = VIEW_Y, boardW = VIEW_W, boardH = VIEW_H;
+let boardCorner = 16;      // rounded corner radius in map units
+let frameBand = 10;        // frame thickness in screen pixels
+
 // ---------- Tile pattern ----------
 
 // A repeatable "random" number between 0 and 1.
@@ -267,10 +283,23 @@ function resizeCanvas() {
     canvas.width = Math.round(screenWidth * pixelRatio);
     canvas.height = Math.round(screenHeight * pixelRatio);
 
-    // Scale so the whole view box fits the screen, then center it
-    const scale = Math.min(screenWidth / VIEW_W, screenHeight / VIEW_H);
+    // Space kept free around the map for the frame (screen pixels):
+    // small on phones, bigger on big screens
+    const margin = Math.round(Math.max(6, Math.min(24, Math.min(screenWidth, screenHeight) * 0.022)));
+    frameBand = Math.round(margin * 0.8);
+
+    // Scale so the whole view box fits INSIDE the margins, then center it
+    const scale = Math.min((screenWidth - 2 * margin) / VIEW_W, (screenHeight - 2 * margin) / VIEW_H);
     const offsetX = (screenWidth - VIEW_W * scale) / 2 - VIEW_X * scale;
     const offsetY = (screenHeight - VIEW_H * scale) / 2 - VIEW_Y * scale;
+
+    // The board: as wide as the map, as tall as the screen allows.
+    // (On a tall phone it is taller than the map, so extra grass shows above and below.)
+    boardX = VIEW_X;
+    boardW = VIEW_W;
+    boardY = (margin - offsetY) / scale;
+    boardH = (screenHeight - 2 * margin) / scale;
+    boardCorner = 16 / scale;
 
     ctx.setTransform(
         pixelRatio * scale, 0,
@@ -282,6 +311,8 @@ function resizeCanvas() {
     viewScale = scale;
     viewOffsetX = offsetX;
     viewOffsetY = offsetY;
+
+    buildOutside(screenWidth, screenHeight, pixelRatio);   // forest around the board (wide screens)
 
     drawMap();
 }
@@ -661,40 +692,18 @@ function drawPlaces() {
 }
 
 // ---------- Nearby place popup ----------
-// Build the popup in JavaScript so index.html does not need to be changed.
+// Built in JavaScript so index.html does not need it. Its look (wooden sign, leaf-green
+// button, pop-in animation) is in style.css under ".arrival-popup".
 const proximityPopup = document.createElement("div");
 proximityPopup.id = "proximityPopup";
+proximityPopup.className = "arrival-popup";
 proximityPopup.setAttribute("role", "status");
-proximityPopup.innerHTML = '<span id="proximityPopupText"></span><button id="proximityPopupButton" type="button">View Details</button>';
-Object.assign(proximityPopup.style, {
-    position: "fixed",
-    left: "50%",
-    top: "18px",
-    transform: "translateX(-50%)",
-    zIndex: "1000",
-    display: "none",
-    alignItems: "center",
-    gap: "12px",
-    maxWidth: "calc(100vw - 28px)",
-    padding: "12px 14px",
-    borderRadius: "14px",
-    background: "rgba(255,255,255,0.97)",
-    color: "#263238",
-    boxShadow: "0 5px 22px rgba(0,0,0,0.2)",
-    font: '600 14px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif'
-});
+proximityPopup.innerHTML =
+    '<span class="arrival-popup-icon" aria-hidden="true">&#128062;</span>' +
+    '<span id="proximityPopupText"></span>' +
+    '<button id="proximityPopupButton" type="button">View Details</button>';
 const proximityPopupText = proximityPopup.querySelector("#proximityPopupText");
 const proximityPopupButton = proximityPopup.querySelector("#proximityPopupButton");
-Object.assign(proximityPopupButton.style, {
-    border: "0",
-    borderRadius: "9px",
-    padding: "9px 12px",
-    background: "#168bff",
-    color: "white",
-    font: "700 14px system-ui, sans-serif",
-    cursor: "pointer",
-    whiteSpace: "nowrap"
-});
 document.body.appendChild(proximityPopup);
 
 function hideProximityPopup() {
@@ -709,6 +718,570 @@ proximityPopupButton.addEventListener("click", function () {
     hideProximityPopup();
     openPlaceCard(id);
 });
+
+// ======================================================================
+// SCENERY: lake, trees, bushes, flowers, rocks, lily pads and butterflies
+// Everything is drawn with Canvas shapes (no images). Move things by changing
+// the numbers in the lists below, or use the editor (open the page with ?edit).
+// ======================================================================
+
+// ---------- Lake: two ponds joined by a stream that flows UNDER the bridge ----------
+// "ellipse": x, y = CENTER of the shape,    w, h = full width and height
+// "rect":    x, y = TOP-LEFT of the shape,  w, h = size,  r = how round the corners are
+// All the shapes are joined into ONE lake.
+const waterShapes = [
+    { shape: "ellipse", x: 250, y: 735,  w: 270, h: 190 },            // north pond
+    { shape: "rect",    x: 315, y: 770,  w: 70,  h: 365, r: 35 },     // stream (passes under the bridge)
+    { shape: "ellipse", x: 440, y: 1100, w: 230, h: 150 }             // south pond
+];
+
+const SHORE_COLOR = "#e6dab4";     // sandy bank around the lake
+const WATER_TOP = "#74c7e3";       // water color at the top of the lake
+const WATER_BOTTOM = "#2e86b4";    // water color at the bottom of the lake
+
+// Places where ripples spread out on the water
+const ripples = [
+    { x: 200, y: 700 }, { x: 290, y: 690 }, { x: 320, y: 760 }, { x: 160, y: 765 },
+    { x: 350, y: 985 }, { x: 350, y: 1070 },
+    { x: 440, y: 1085 }, { x: 505, y: 1110 }, { x: 410, y: 1130 }
+];
+
+// ---------- Trees, bushes, flowers, rocks, lily pads ----------
+// type: "tree", "blossom" (pink tree), "pine", "bush", "flowers", "rock", "lily"
+// x, y = the spot where the object touches the ground (its base), in map units
+// size = 1 is normal, 1.3 is bigger, 0.8 is smaller (optional)
+const scenery = [
+    // forest in the top-left
+    { type: "tree", x: 110, y: 150, size: 1.2 },  { type: "tree", x: 190, y: 95 },
+    { type: "pine", x: 270, y: 70, size: 1.1 },   { type: "tree", x: 350, y: 140, size: 1.2 },
+    { type: "pine", x: 430, y: 80 },              { type: "tree", x: 520, y: 130, size: 1.1 },
+    { type: "tree", x: 95, y: 260, size: 1.1 },   { type: "pine", x: 170, y: 330, size: 1.2 },
+    { type: "tree", x: 260, y: 250, size: 1.3 },  { type: "tree", x: 340, y: 310 },
+    { type: "pine", x: 430, y: 230, size: 1.1 },  { type: "tree", x: 510, y: 300, size: 1.2 },
+    { type: "tree", x: 590, y: 220 },
+    { type: "tree", x: 120, y: 430, size: 1.2 },  { type: "pine", x: 210, y: 470 },
+    { type: "tree", x: 300, y: 430, size: 1.1 },  { type: "tree", x: 390, y: 500, size: 1.2 },
+    { type: "pine", x: 480, y: 440 },             { type: "tree", x: 560, y: 520, size: 1.1 },
+
+    // around the north pond
+    { type: "tree", x: 115, y: 600, size: 1.1 },  { type: "pine", x: 200, y: 585 },
+    { type: "tree", x: 300, y: 600 },             { type: "tree", x: 380, y: 590, size: 0.9 },
+    { type: "rock", x: 118, y: 800 },             { type: "rock", x: 165, y: 835 },
+    { type: "rock", x: 210, y: 848, size: 1.2 },  { type: "rock", x: 285, y: 850 },
+    { type: "lily", x: 200, y: 700 },             { type: "lily", x: 255, y: 770, size: 1.2 },
+    { type: "lily", x: 170, y: 740 },             { type: "lily", x: 315, y: 705, size: 0.9 },
+
+    // left of the stream, below the bridge
+    { type: "tree", x: 110, y: 905, size: 1.2 },
+    { type: "pine", x: 95, y: 995, size: 1.2 },   { type: "tree", x: 175, y: 1035, size: 1.1 },
+
+    // stream and south pond
+    { type: "lily", x: 350, y: 1015 },            { type: "lily", x: 345, y: 1065, size: 0.9 },
+    { type: "lily", x: 480, y: 1085, size: 1.2 }, { type: "lily", x: 520, y: 1112 },
+    { type: "lily", x: 440, y: 1122, size: 0.9 },
+    { type: "rock", x: 560, y: 1092 },            { type: "rock", x: 430, y: 1190, size: 1.2 },
+
+    // forest in the bottom-right
+    { type: "tree", x: 540, y: 790, size: 1.1 },  { type: "pine", x: 620, y: 745 },
+    { type: "tree", x: 710, y: 785, size: 1.2 },  { type: "pine", x: 800, y: 745 },
+    { type: "tree", x: 865, y: 805, size: 1.1 },
+    { type: "tree", x: 520, y: 885, size: 1.2 },  { type: "pine", x: 605, y: 935 },
+    { type: "tree", x: 700, y: 905, size: 1.1 },  { type: "tree", x: 795, y: 935, size: 1.2 },
+    { type: "pine", x: 860, y: 905 },
+    { type: "tree", x: 625, y: 1025, size: 1.1 }, { type: "pine", x: 715, y: 1055, size: 1.2 },
+    { type: "tree", x: 810, y: 1035 },            { type: "tree", x: 860, y: 1105, size: 1.1 },
+    { type: "pine", x: 645, y: 1135 },            { type: "tree", x: 745, y: 1175, size: 1.2 },
+    { type: "tree", x: 600, y: 1235, size: 1.1 },
+    { type: "pine", x: 690, y: 1250 },            { type: "tree", x: 535, y: 1245, size: 1.1 },
+    { type: "flowers", x: 520, y: 735 },
+    { type: "flowers", x: 705, y: 830 },          { type: "flowers", x: 765, y: 995 },
+
+    // near the aviary road and the clock
+    { type: "flowers", x: 420, y: 365 },          { type: "flowers", x: 262, y: 385 },
+    { type: "tree", x: 830, y: 95, size: 1.1 },   { type: "pine", x: 880, y: 165 },
+    { type: "tree", x: 870, y: 610, size: 1.1 },  { type: "pine", x: 880, y: 700 }
+];
+// Draw the ones with a smaller y first, so objects lower on the screen overlap the ones behind them
+scenery.sort(function (a, b) { return a.y - b.y; });
+
+// Butterflies fly around a centre point (cx, cy) in a lazy figure-eight
+const butterflies = [
+    { cx: 330, cy: 400, ax: 70, ay: 40, speed: 0.55, color: "#ffb300" },
+    { cx: 560, cy: 410, ax: 60, ay: 35, speed: 0.65, color: "#ff7ab6" },
+    { cx: 600, cy: 850, ax: 80, ay: 45, speed: 0.5,  color: "#ffffff" },
+    { cx: 200, cy: 980, ax: 40, ay: 45, speed: 0.6,  color: "#ffd54f" },
+    { cx: 500, cy: 1215, ax: 60, ay: 25, speed: 0.7, color: "#b388ff" }
+];
+
+const TREE_PALETTES = [
+    { dark: "#2e7d32", mid: "#43a047", light: "#6fbf73" },
+    { dark: "#33691e", mid: "#558b2f", light: "#8bc34a" },
+    { dark: "#1b5e20", mid: "#2e7d32", light: "#56a95b" }
+];
+const BLOSSOM_PALETTE = { dark: "#d96b93", mid: "#f48fb1", light: "#ffc1d6" };
+const FLOWER_COLORS = ["#ff6f91", "#ffd54f", "#ffffff", "#ff9f43", "#b388ff", "#ff6f91", "#ffd54f"];
+
+// ---------- Lake drawing ----------
+
+// A rounded rectangle added to the CURRENT path (so it can be joined with other shapes)
+function addRoundedRect(x, y, w, h, r) {
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+}
+
+// One path made of ALL the water shapes (overlapping shapes join into one lake)
+function waterPath() {
+    ctx.beginPath();
+    for (const s of waterShapes) {
+        if (s.shape === "ellipse") {
+            ctx.moveTo(s.x + s.w / 2, s.y);
+            ctx.ellipse(s.x, s.y, s.w / 2, s.h / 2, 0, 0, Math.PI * 2);
+        } else {
+            addRoundedRect(s.x, s.y, s.w, s.h, s.r);
+        }
+    }
+}
+
+function drawWater() {
+    const t = performance.now() / 1000;
+
+    ctx.save();
+
+    // 1. sandy bank: the lake outline drawn thick, so a border sticks out around the water
+    waterPath();
+    ctx.lineJoin = "round";
+    ctx.lineWidth = 20;
+    ctx.strokeStyle = SHORE_COLOR;
+    ctx.stroke();
+
+    // white foam ring: also drawn before the water, so the water hides its inner half
+    // and only a thin white line is left right at the water edge
+    waterPath();
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
+    ctx.stroke();
+
+    // 2. the water, a little lighter at the top
+    const gradient = ctx.createLinearGradient(0, 640, 0, 1175);
+    gradient.addColorStop(0, WATER_TOP);
+    gradient.addColorStop(1, WATER_BOTTOM);
+    waterPath();
+    ctx.fillStyle = gradient;
+    ctx.fill();
+
+    // 3. things that only show INSIDE the water (the clip cuts everything at the lake edge)
+    ctx.save();
+    waterPath();
+    ctx.clip();
+
+    // ripples: rings that grow and fade out, one after another
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 1.6;
+    for (let i = 0; i < ripples.length; i++) {
+        const phase = (t * 0.35 + i * 0.173) % 1;
+        const radius = 6 + phase * 26;
+        ctx.globalAlpha = (1 - phase) * 0.5;
+        ctx.beginPath();
+        ctx.ellipse(ripples[i].x, ripples[i].y, radius, radius * 0.45, 0, 0, Math.PI * 2);
+        ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    // current: short light streaks slide down the stream
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.35)";
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+    for (let i = 0; i < 8; i++) {
+        const y = 770 + ((t * 28 + i * 46) % 365);
+        const x = 350 + ((i % 3) - 1) * 10;
+        ctx.beginPath(); ctx.moveTo(x - 14, y); ctx.lineTo(x - 14, y + 12); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x + 8, y + 6); ctx.lineTo(x + 8, y + 18); ctx.stroke();
+    }
+    ctx.restore();
+
+    ctx.restore();
+}
+
+// ---------- Scenery drawing ----------
+// Every object is designed around (0, 0) = its base on the ground.
+// drawSceneryItem() then does:  translate (move to x, y), scale (size), rotate (sway in the wind).
+
+function blob(x, y, r, color) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+}
+
+function groundShadow(rx, ry) {
+    ctx.fillStyle = "rgba(0, 0, 0, 0.18)";
+    ctx.beginPath();
+    ctx.ellipse(3, 2, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+}
+
+// Round tree: brown trunk and a canopy made of overlapping circles
+function drawRoundTree(p) {
+    ctx.fillStyle = "#6b4423";
+    ctx.beginPath();
+    ctx.moveTo(-6, 0); ctx.lineTo(6, 0); ctx.lineTo(4, -42); ctx.lineTo(-4, -42);
+    ctx.closePath();
+    ctx.fill();
+
+    // dark layer at the back, lighter layers in front, tiny highlights on top
+    blob(-17, -52, 23, p.dark); blob(17, -52, 23, p.dark); blob(0, -70, 27, p.dark);
+    blob(-15, -56, 19, p.mid);  blob(15, -56, 19, p.mid);  blob(0, -74, 22, p.mid);
+    blob(-9, -76, 10, p.light); blob(10, -66, 8, p.light);
+}
+
+// Pine tree: three triangles stacked on a short trunk
+function drawPine() {
+    ctx.fillStyle = "#6b4423";
+    ctx.fillRect(-4, -18, 8, 18);
+
+    const layers = [
+        { base: -14, half: 30, height: 34 },
+        { base: -36, half: 25, height: 32 },
+        { base: -58, half: 19, height: 30 }
+    ];
+    for (const l of layers) {
+        ctx.fillStyle = "#1f5f35";
+        ctx.beginPath();
+        ctx.moveTo(0, l.base - l.height); ctx.lineTo(-l.half, l.base); ctx.lineTo(l.half, l.base);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = "#2f8046";               // lighter side
+        ctx.beginPath();
+        ctx.moveTo(0, l.base - l.height + 3); ctx.lineTo(-l.half + 5, l.base - 2); ctx.lineTo(-1, l.base - 2);
+        ctx.closePath();
+        ctx.fill();
+    }
+}
+
+// Bush: a low cluster of circles (some bushes carry berries)
+function drawBush(seed) {
+    blob(-14, -10, 13, "#2e7d32"); blob(14, -10, 13, "#2e7d32"); blob(0, -16, 17, "#2e7d32");
+    blob(-12, -13, 10, "#4caf50"); blob(12, -13, 10, "#4caf50"); blob(0, -20, 12, "#66bb6a");
+
+    if (seed > 0.55) {
+        for (const b of [[-12, -14], [6, -24], [14, -10], [-2, -8]]) {
+            blob(b[0], b[1], 2.6, "#e53935");
+        }
+    }
+}
+
+// Flower patch: green leaves with colorful flowers that each sway a little
+function drawFlowers(t) {
+    ctx.fillStyle = "#3f8f4a";
+    ctx.beginPath(); ctx.ellipse(0, -3, 22, 6, 0, 0, Math.PI * 2); ctx.fill();
+
+    const spots = [[-14, -9], [-6, -17], [4, -11], [12, -18], [17, -8], [-1, -5], [-19, -17]];
+    for (let i = 0; i < spots.length; i++) {
+        const sway = Math.sin(t * 2 + i) * 0.12;
+        ctx.save();
+        ctx.translate(spots[i][0], 0);
+        ctx.rotate(sway);
+        const height = -spots[i][1];
+
+        ctx.strokeStyle = "#2e7d32";
+        ctx.lineWidth = 1.6;
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -height); ctx.stroke();
+        blob(0, -height, 4.6, FLOWER_COLORS[i]);
+        blob(0, -height, 1.8, "#fff3b0");
+        ctx.restore();
+    }
+}
+
+// Rock: a rounded gray stone
+function drawRock() {
+    ctx.fillStyle = "#8d989b";
+    ctx.beginPath();
+    ctx.moveTo(-15, 0); ctx.quadraticCurveTo(-17, -10, -5, -14);
+    ctx.quadraticCurveTo(7, -17, 14, -8);
+    ctx.quadraticCurveTo(18, -2, 14, 0);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = "#b5bec0";                   // lit side
+    ctx.beginPath();
+    ctx.moveTo(-12, -3); ctx.quadraticCurveTo(-13, -10, -4, -12);
+    ctx.quadraticCurveTo(2, -13, 3, -8);
+    ctx.quadraticCurveTo(-5, -8, -12, -3);
+    ctx.fill();
+}
+
+// Lily pad floating on the water (some have a pink flower)
+function drawLily(seed, t) {
+    ctx.scale(1, 0.6);                           // flattened, as if seen from above at an angle
+    ctx.fillStyle = "#3f9b4b";
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.arc(0, 0, 13, 0.45, Math.PI * 2);        // a circle with a small notch cut out
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = "#2e7d32";
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-9, -3); ctx.moveTo(0, 0); ctx.lineTo(-3, 9); ctx.stroke();
+
+    if (seed > 0.5) {
+        for (let i = 0; i < 6; i++) {
+            const a = (i / 6) * Math.PI * 2 + t * 0.1;
+            blob(Math.cos(a) * 4, Math.sin(a) * 4 - 2, 3, "#ffb3d1");
+        }
+        blob(0, -2, 2.2, "#fff176");
+    }
+}
+
+// Draw one scenery object
+function drawSceneryItem(item, t) {
+    const size = item.size || 1;
+    const seed = pseudoRandom(item.x * 0.37 + item.y * 0.11);      // different for every object, never changes
+
+    // wind: the swing grows and shrinks slowly (gusts)
+    const gust = 0.5 + 0.5 * Math.sin(t * 0.35 + item.x * 0.01);
+    const sway = Math.sin(t * 1.3 + seed * 6.28) * (0.012 + 0.016 * gust);
+
+    ctx.save();
+    ctx.translate(item.x, item.y);        // TRANSLATION: move to the object's spot
+    ctx.scale(size, size);                // SCALING: make it bigger or smaller
+
+    switch (item.type) {
+        case "tree":
+            groundShadow(26, 7);
+            ctx.rotate(sway);             // ROTATION: sway around the base
+            drawRoundTree(TREE_PALETTES[Math.floor(seed * 3) % 3]);
+            break;
+        case "blossom":
+            groundShadow(26, 7);
+            ctx.rotate(sway);
+            drawRoundTree(BLOSSOM_PALETTE);
+            break;
+        case "pine":
+            groundShadow(24, 6);
+            ctx.rotate(sway * 0.8);
+            drawPine();
+            break;
+        case "bush":
+            groundShadow(24, 6);
+            ctx.rotate(sway * 1.5);
+            drawBush(seed);
+            break;
+        case "flowers":
+            drawFlowers(t);
+            break;
+        case "rock":
+            groundShadow(15, 4);
+            drawRock();
+            break;
+        case "lily":
+            ctx.translate(0, Math.sin(t * 1.5 + seed * 6) * 0.8);   // gently bobs on the water
+            drawLily(seed, t);
+            break;
+    }
+
+    ctx.restore();
+}
+
+function drawScenery() {
+    const t = performance.now() / 1000;
+
+    for (const item of scenery) {
+        drawSceneryItem(item, t);
+    }
+
+    // editor only: ring around the selected object
+    if (EDIT_MODE && selectedItem) {
+        const size = selectedItem.size || 1;
+        ctx.save();
+        ctx.strokeStyle = "#ffd54f";
+        ctx.lineWidth = 3;
+        ctx.setLineDash([6, 5]);
+        ctx.beginPath();
+        ctx.arc(selectedItem.x, selectedItem.y - 28 * size, 40 * size, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+    }
+}
+
+// Butterflies: they drift around and flap their wings
+function drawButterflies() {
+    const t = performance.now() / 1000;
+
+    for (let i = 0; i < butterflies.length; i++) {
+        const b = butterflies[i];
+        const phase = i * 1.7;
+
+        // position (a lazy figure-eight) and the direction it is flying
+        const x = b.cx + b.ax * Math.sin(t * b.speed + phase);
+        const y = b.cy + b.ay * Math.sin(t * b.speed * 2 + phase);
+        const vx = b.ax * b.speed * Math.cos(t * b.speed + phase);
+        const vy = b.ay * b.speed * 2 * Math.cos(t * b.speed * 2 + phase);
+
+        const flap = 0.25 + 0.75 * Math.abs(Math.sin(t * 13 + phase));   // wings open and close
+
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(Math.atan2(vy, vx) + Math.PI / 2);      // face the flying direction
+
+        ctx.fillStyle = b.color;
+        ctx.strokeStyle = "rgba(60, 40, 20, 0.6)";
+        ctx.lineWidth = 0.8;
+        for (const side of [-1, 1]) {
+            ctx.beginPath();
+            ctx.ellipse(side * 5 * flap, -3, 5 * flap, 6.5, side * 0.4, 0, Math.PI * 2);
+            ctx.fill(); ctx.stroke();
+            ctx.beginPath();
+            ctx.ellipse(side * 4 * flap, 4, 3.5 * flap, 4.5, side * -0.3, 0, Math.PI * 2);
+            ctx.fill(); ctx.stroke();
+        }
+        ctx.fillStyle = "#3b2a14";
+        ctx.beginPath(); ctx.ellipse(0, 0, 1.4, 6, 0, 0, Math.PI * 2); ctx.fill();   // body
+
+        ctx.restore();
+    }
+}
+
+// Warn (in the browser console) if something was placed on a walking path
+function warnAboutSceneryOnPaths() {
+    const roads = pathRects.concat(ticketPathRects);
+
+    for (const item of scenery) {
+        if (item.type === "lily") continue;
+        const pad = 8 * (item.size || 1);
+
+        for (const r of roads) {
+            if (item.x > r.x - pad && item.x < r.x + r.w + pad &&
+                item.y > r.y - pad && item.y < r.y + r.h + pad) {
+                console.warn("Scenery '" + item.type + "' at (" + item.x + ", " + item.y + ") is on or next to a walking path.");
+                break;
+            }
+        }
+    }
+}
+
+// ---------- Scenery editor (only when the page is opened with ?edit) ----------
+// Click the grass to add the selected object, drag an object to move it,
+// Delete removes it, + and - change its size, "Copy" gives you the finished list.
+const EDIT_MODE = new URLSearchParams(window.location.search).has("edit");
+let selectedItem = null;
+
+function setupEditor() {
+    let editType = "tree";
+    let dragging = false;
+
+    canvas.style.touchAction = "none";
+
+    const panel = document.createElement("div");
+    panel.className = "edit-panel";
+    panel.innerHTML =
+        "<strong>Scenery editor</strong>" +
+        '<div class="edit-types"></div>' +
+        '<div class="edit-hint">Click = add &middot; Drag = move<br>Delete = remove &middot; + / - = size</div>' +
+        '<div class="edit-coords" id="editCoords">x: -&nbsp; y: -</div>' +
+        '<button type="button" id="editCopy">Copy scenery list</button>';
+    document.body.appendChild(panel);
+
+    const coords = panel.querySelector("#editCoords");
+    const typeBox = panel.querySelector(".edit-types");
+
+    for (const type of ["tree", "blossom", "pine", "bush", "flowers", "rock", "lily"]) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = type;
+        if (type === editType) button.className = "active";
+        button.addEventListener("click", function () {
+            editType = type;
+            for (const other of typeBox.children) other.className = "";
+            button.className = "active";
+        });
+        typeBox.appendChild(button);
+    }
+
+    // screen position -> map position
+    function mapPoint(event) {
+        const box = canvas.getBoundingClientRect();
+        return {
+            x: (event.clientX - box.left - viewOffsetX) / viewScale,
+            y: (event.clientY - box.top - viewOffsetY) / viewScale
+        };
+    }
+
+    // the object closest to this point (or null)
+    function itemAt(p) {
+        let best = null;
+        let bestDistance = Infinity;
+        for (const item of scenery) {
+            const size = item.size || 1;
+            const d = Math.hypot(p.x - item.x, p.y - (item.y - 20 * size));
+            if (d < 34 * size && d < bestDistance) { best = item; bestDistance = d; }
+        }
+        return best;
+    }
+
+    canvas.addEventListener("pointerdown", function (event) {
+        const p = mapPoint(event);
+        let item = itemAt(p);
+
+        if (!item) {                                   // empty spot: add a new object
+            item = { type: editType, x: Math.round(p.x), y: Math.round(p.y) };
+            scenery.push(item);
+        }
+        selectedItem = item;
+        dragging = true;
+        coords.textContent = "x: " + Math.round(item.x) + "  y: " + Math.round(item.y);
+    });
+
+    canvas.addEventListener("pointermove", function (event) {
+        if (!dragging || !selectedItem) return;
+        const p = mapPoint(event);
+        selectedItem.x = Math.round(p.x);
+        selectedItem.y = Math.round(p.y);
+        coords.textContent = "x: " + selectedItem.x + "  y: " + selectedItem.y;
+    });
+
+    window.addEventListener("pointerup", function () {
+        if (dragging) scenery.sort(function (a, b) { return a.y - b.y; });
+        dragging = false;
+    });
+
+    function copyList() {
+        const lines = scenery.map(function (i) {
+            const size = i.size && i.size !== 1 ? ", size: " + i.size.toFixed(1) : "";
+            return '    { type: "' + i.type + '", x: ' + Math.round(i.x) + ", y: " + Math.round(i.y) + size + " }";
+        });
+        const text = "const scenery = [\n" + lines.join(",\n") + "\n];";
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(
+                function () { coords.textContent = "Copied! Paste it over the scenery list in main-map.js"; },
+                function () { window.prompt("Copy this list:", text); }
+            );
+        } else {
+            window.prompt("Copy this list:", text);
+        }
+    }
+    panel.querySelector("#editCopy").addEventListener("click", copyList);
+
+    window.addEventListener("keydown", function (event) {
+        if (!selectedItem) return;
+        const key = event.key;
+
+        if (key === "Delete" || key === "Backspace") {
+            scenery.splice(scenery.indexOf(selectedItem), 1);
+            selectedItem = null;
+        } else if (key === "+" || key === "=") {
+            selectedItem.size = Math.min(2.5, (selectedItem.size || 1) + 0.1);
+        } else if (key === "-" || key === "_") {
+            selectedItem.size = Math.max(0.4, (selectedItem.size || 1) - 0.1);
+        }
+    });
+}
 
 // ---------- Dotted route ----------
 
@@ -797,16 +1370,14 @@ window.addEventListener("blur", () => {
     for (const k in keys) keys[k] = false;     // forget keys if the tab loses focus
 });
 
-// ---------- Controls: joystick (mobile + tablet, right side) ----------
+// ---------- Controls: joystick (mobile + tablet only, right side) ----------
 const JOY_SIZE = 130;          // diameter of the joystick base (screen pixels)
 const JOY_DEAD_ZONE = 0.15;    // tiny thumb movements are ignored
 const joy = { x: 0, y: 0 };    // joystick direction, each from -1 to 1
 
 function createJoystick() {
-    // The joystick is always created, but only SHOWN on phones / tablets
-    // (PC users use WASD). It re-checks when the screen changes, so it also appears
-    // when you switch to a phone in the browser's device toolbar.
-    let sawTouch = false;
+    // The joystick is always created, but only SHOWN while touch is being used
+    // (PC users use WASD). See "When is the joystick visible?" below.
 
     const knobSize = JOY_SIZE * 0.45;
     const maxDist = JOY_SIZE * 0.3;           // how far the knob can move from the center
@@ -818,7 +1389,7 @@ function createJoystick() {
         `right:35px;` +
         `bottom:calc(110px + env(safe-area-inset-bottom, 0px));` +
         `width:${JOY_SIZE}px; height:${JOY_SIZE}px;` +
-        "opacity:0.45; background:rgba(255,255,255,0.35); border:3px solid rgba(255,255,255,0.85);" +
+        "opacity:0.6; background:rgba(255,244,214,0.35); border:3px solid rgba(138,92,51,0.9);" +
         "box-shadow:0 2px 10px rgba(0,0,0,0.25);" +
         "touch-action:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;";
 
@@ -827,37 +1398,58 @@ function createJoystick() {
         "position:absolute; left:50%; top:50%; border-radius:50%; pointer-events:none;" +
         `width:${knobSize}px; height:${knobSize}px;` +
         `margin:${-knobSize / 2}px 0 0 ${-knobSize / 2}px;` +
-        "background:rgba(22,139,255,0.92); border:3px solid #fff;" +
+        "background:rgba(63,143,74,0.95); border:3px solid #fff4d6;" +
         "box-shadow:0 2px 6px rgba(0,0,0,0.3);";
 
     base.appendChild(knob);
     document.body.appendChild(base);
 
-    // Show the joystick ONLY on phone / tablet type devices.
-    // A normal PC (mouse + keyboard) never matches, even if the window is narrow.
-    function wantJoystick() {
-        const coarse = window.matchMedia("(pointer: coarse)").matches;   // finger is the main pointer
-        const noHover = window.matchMedia("(hover: none)").matches;      // no mouse hover (phones, tablets)
-        const mobileAgent = typeof navigator !== "undefined" &&
-                            /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-        return coarse || noHover || mobileAgent || sawTouch;
+    // ---- When is the joystick visible? ----
+    // We follow the input the person is REALLY using:
+    //   a finger touches the screen          -> show the joystick (phone / tablet)
+    //   the mouse moves, or WASD / arrows    -> hide it (PC: keyboard is enough)
+    // Before any input, the first guess comes from the device type.
+    function isPhoneLike() {
+        return typeof navigator !== "undefined" &&
+               /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+    }
+    function guessTouchDevice() {
+        return window.matchMedia("(pointer: coarse)").matches || isPhoneLike();
     }
 
-    function updateJoystickVisibility() {
-        base.style.display = wantJoystick() ? "block" : "none";
-        if (base.style.display === "none") { joy.x = 0; joy.y = 0; }
+    let touchMode = guessTouchDevice();
+
+    function applyJoystickVisibility() {
+        base.style.display = touchMode ? "block" : "none";
+        if (!touchMode) { joy.x = 0; joy.y = 0; }
     }
 
-    updateJoystickVisibility();
-    window.addEventListener("resize", updateJoystickVisibility);
-    for (const q of ["(pointer: coarse)", "(hover: none)"]) {
-        const query = window.matchMedia(q);
-        if (query.addEventListener) query.addEventListener("change", updateJoystickVisibility);
+    function setTouchMode(on) {
+        if (touchMode === on) return;
+        touchMode = on;
+        applyJoystickVisibility();
     }
-    window.addEventListener("touchstart", () => {
-        sawTouch = true;
-        updateJoystickVisibility();
-    }, { passive: true, once: true });
+
+    applyJoystickVisibility();
+
+    // finger / pen -> touch mode.  Mouse -> PC mode (but never on a phone-like device,
+    // because the browser's phone emulation also produces mouse events).
+    window.addEventListener("pointerdown", (e) => {
+        if (e.pointerType === "touch" || e.pointerType === "pen") setTouchMode(true);
+        else if (!isPhoneLike()) setTouchMode(false);
+    }, true);
+    window.addEventListener("pointermove", (e) => {
+        if (e.pointerType === "mouse" && !isPhoneLike()) setTouchMode(false);
+    }, { passive: true });
+    window.addEventListener("keydown", (e) => {
+        if (MOVE_KEYS.includes(e.key.toLowerCase())) setTouchMode(false);
+    });
+
+    // switching between PC and phone in the browser's device toolbar
+    window.matchMedia("(pointer: coarse)").addEventListener?.("change", () => setTouchMode(guessTouchDevice()));
+    window.addEventListener("resize", () => {
+        if (isPhoneLike()) setTouchMode(true);
+    });
 
     let activePointer = null;
 
@@ -1116,14 +1708,262 @@ function checkNearbyPlace() {
     }
 }
 
+// ---------- Map board: outside area and wooden frame ----------
+
+// ---------- Outside the board: a forest backdrop ----------
+// Everything here is measured in SCREEN pixels. The grass, the trees and the dark edge
+// shade are painted ONCE into a hidden canvas (cached), so each frame only copies that one
+// picture. This keeps the page light. Only the fireflies are drawn live, because they glow.
+let outsideBackdrop = null;     // cached picture: grass + forest + dark edge shade
+let outsideItems = [];          // trees / bushes / flowers / rocks on both sides
+let outsideFireflies = [];      // glowing dots
+
+function buildOutside(screenW, screenH, pixelRatio) {
+    // ---- 1. grass picture ----
+    const grassPic = document.createElement("canvas");
+    grassPic.width = canvas.width;
+    grassPic.height = canvas.height;
+    const c = grassPic.getContext("2d");
+    c.scale(pixelRatio, pixelRatio);
+
+    const grass = c.createLinearGradient(0, 0, 0, screenH);
+    grass.addColorStop(0, OUTSIDE_COLOR_TOP);
+    grass.addColorStop(1, OUTSIDE_COLOR_BOTTOM);
+    c.fillStyle = grass;
+    c.fillRect(0, 0, screenW, screenH);
+
+    // mown-lawn stripes (slanted)
+    c.fillStyle = "rgba(255, 255, 255, 0.05)";
+    for (let x = -screenH * 0.5; x < screenW; x += 96) {
+        c.beginPath();
+        c.moveTo(x, 0); c.lineTo(x + 48, 0);
+        c.lineTo(x + 48 + screenH * 0.5, screenH); c.lineTo(x + screenH * 0.5, screenH);
+        c.fill();
+    }
+
+    // little grass tufts
+    c.strokeStyle = "rgba(25, 85, 40, 0.3)";
+    c.lineWidth = 1.4;
+    c.lineCap = "round";
+    for (let i = 0; i < 320; i++) {
+        const gx = pseudoRandom(i * 1.7 + 3) * screenW;
+        const gy = pseudoRandom(i * 3.1 + 9) * screenH;
+        c.beginPath();
+        c.moveTo(gx - 3, gy); c.lineTo(gx - 4.5, gy - 6);
+        c.moveTo(gx, gy);     c.lineTo(gx, gy - 8);
+        c.moveTo(gx + 3, gy); c.lineTo(gx + 4.5, gy - 6);
+        c.stroke();
+    }
+
+    // ---- 2. dark edge shade (darker towards the corners of the screen) ----
+    const shadePic = document.createElement("canvas");
+    shadePic.width = canvas.width;
+    shadePic.height = canvas.height;
+    const sh = shadePic.getContext("2d");
+    sh.scale(pixelRatio, pixelRatio);
+    const shade = sh.createRadialGradient(screenW / 2, screenH / 2, Math.min(screenW, screenH) * 0.3,
+                                          screenW / 2, screenH / 2, Math.hypot(screenW, screenH) * 0.55);
+    shade.addColorStop(0, "rgba(6, 28, 14, 0.14)");   // slightly darker forest so the map board stands out
+    shade.addColorStop(1, "rgba(6, 28, 14, 0.6)");
+    sh.fillStyle = shade;
+    sh.fillRect(0, 0, screenW, screenH);
+
+    // ---- 3. forest on both sides of the board (only if there is room) ----
+    outsideItems = [];
+    outsideFireflies = [];
+
+    const boardLeft = viewOffsetX + boardX * viewScale;
+    const boardRight = boardLeft + boardW * viewScale;
+    const keepOut = frameBand + 12;                  // trees stay this far away from the frame
+    const cell = Math.max(90, 165 * viewScale);      // one forest "cell" in pixels (bigger = fewer trees)
+    const MAX_DEPTH = 560;                           // forest is not drawn farther than this from the frame
+
+    for (const side of [-1, 1]) {
+        const free = side < 0 ? boardLeft - keepOut : screenW - boardRight - keepOut;   // free width on this side
+        if (free < 70) continue;                      // phones / narrow screens: nothing to draw
+
+        const depth = Math.min(free, MAX_DEPTH);
+        const cols = Math.ceil(depth / cell);
+        const rows = Math.ceil((screenH + 80) / cell);
+
+        for (let r = 0; r < rows; r++) {
+            for (let k = 0; k < cols; k++) {
+                const seed = r * 31 + k * 7 + (side < 0 ? 0 : 1000);
+                const pick = pseudoRandom(seed + 2.3);
+
+                // only green trees, pines, a few flower patches and rocks
+                // (no bushes or pink trees outside the frame)
+                let type = "tree";
+                if (pick > 0.50) type = "pine";
+                if (pick > 0.88) type = "flowers";
+                if (pick > 0.95) type = "rock";
+
+                // leave some cells empty so the forest is not crowded
+                if (pseudoRandom(seed + 7.7) < 0.3) continue;
+
+                const size = viewScale * (0.85 + 0.45 * pseudoRandom(seed + 3.1));
+                let d = (k + 0.2 + 0.6 * pseudoRandom(seed)) * cell;     // distance from the frame
+                d = Math.max(d, 34 * size);                              // never touch the frame
+                if (d > free) continue;
+
+                const y = (r + 0.2 + 0.6 * pseudoRandom(seed + 0.5)) * cell + 10;
+                const x = side < 0 ? boardLeft - keepOut - d : boardRight + keepOut + d;
+                outsideItems.push({ type: type, x: x, y: y, size: size });
+            }
+        }
+
+        // fireflies float in the forest
+        for (let i = 0; i < 9; i++) {
+            const fx = side < 0 ? boardLeft - keepOut - pseudoRandom(i * 5.3 + side) * depth
+                                : boardRight + keepOut + pseudoRandom(i * 5.3 + side) * depth;
+            outsideFireflies.push({
+                x: fx,
+                y: pseudoRandom(i * 7.7 + side * 2) * screenH,
+                phase: pseudoRandom(i * 2.9 + 1) * 6.28,
+                speed: 0.4 + pseudoRandom(i * 4.1) * 0.6
+            });
+        }
+    }
+
+    outsideItems.sort((a, b) => a.y - b.y);          // lower objects are drawn later (they stand in front)
+
+    // ---- 4. paint grass + forest + shade ONCE and keep the result ----
+    // (the forest is drawn on the main canvas here, then copied into the cached picture;
+    //  drawMap() paints over the main canvas right after, so nothing stays visible)
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(grassPic, 0, 0);
+    ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+    for (const item of outsideItems) {
+        drawSceneryItem(item, 0);
+    }
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(shadePic, 0, 0);
+    ctx.restore();
+
+    outsideBackdrop = document.createElement("canvas");
+    outsideBackdrop.width = canvas.width;
+    outsideBackdrop.height = canvas.height;
+    outsideBackdrop.getContext("2d").drawImage(canvas, 0, 0);
+}
+
+function drawOutside() {
+    const dpr = window.devicePixelRatio || 1;
+    const t = performance.now() / 1000;
+
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+    // grass + forest + shade: one cached picture
+    if (outsideBackdrop) {
+        ctx.drawImage(outsideBackdrop, 0, 0);
+    } else {
+        ctx.fillStyle = OUTSIDE_COLOR_BOTTOM;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // fireflies: drift slowly and twinkle
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    for (const f of outsideFireflies) {
+        const x = f.x + Math.sin(t * f.speed + f.phase) * 14;
+        const y = f.y + Math.cos(t * f.speed * 0.8 + f.phase) * 10;
+        const glow = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(t * 2.2 + f.phase * 3));
+        ctx.fillStyle = "rgba(255, 235, 140, " + (0.16 * glow) + ")";
+        ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "rgba(255, 248, 190, " + glow + ")";
+        ctx.beginPath(); ctx.arc(x, y, 2.2, 0, Math.PI * 2); ctx.fill();
+    }
+
+    ctx.restore();
+}
+
+// Make the board shape the only place where drawing is visible (CLIPPING again)
+function clipToBoard() {
+    roundedRect(boardX, boardY, boardW, boardH, boardCorner);
+    ctx.clip();
+}
+
+// Soft shadow just inside the frame, so the map looks set into the board
+function drawBoardInnerShadow() {
+    const px = 1 / viewScale;
+    roundedRect(boardX, boardY, boardW, boardH, boardCorner);
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.12)";
+    ctx.lineWidth = 12 * px;
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.16)";
+    ctx.lineWidth = 4 * px;
+    ctx.stroke();
+}
+
+// The wooden frame around the board (all sizes come from screen pixels, so it looks
+// the same thickness on every device)
+function drawFrame() {
+    const px = 1 / viewScale;               // one screen pixel, in map units
+    const band = frameBand * px;            // frame thickness in map units
+
+    // soft shadow on the dark green outside
+    for (let i = 3; i >= 1; i--) {
+        roundedRect(boardX - band - 1 * px, boardY - band - 1 * px,
+                    boardW + 2 * band + 2 * px, boardH + 2 * band + 2 * px, boardCorner + band);
+        ctx.strokeStyle = "rgba(0, 0, 0, 0.10)";
+        ctx.lineWidth = i * 5 * px;
+        ctx.stroke();
+    }
+
+    // the wood band (stroked half a band outside the board)
+    const wood = ctx.createLinearGradient(boardX, boardY, boardX + boardW, boardY + boardH);
+    wood.addColorStop(0, FRAME_WOOD_LIGHT);
+    wood.addColorStop(1, FRAME_WOOD_DARK);
+    roundedRect(boardX - band / 2, boardY - band / 2, boardW + band, boardH + band, boardCorner + band / 2);
+    ctx.strokeStyle = wood;
+    ctx.lineWidth = band;
+    ctx.stroke();
+
+    // dark outer edge and light inner edge give the frame some depth
+    roundedRect(boardX - band, boardY - band, boardW + 2 * band, boardH + 2 * band, boardCorner + band);
+    ctx.strokeStyle = FRAME_EDGE;
+    ctx.lineWidth = 2 * px;
+    ctx.stroke();
+
+    roundedRect(boardX - 0.5 * px, boardY - 0.5 * px, boardW + px, boardH + px, boardCorner);
+    ctx.strokeStyle = FRAME_HIGHLIGHT;
+    ctx.lineWidth = 1.5 * px;
+    ctx.stroke();
+
+    // four little rivets in the corners
+    const r = Math.max(1.6, band * 0.16) * px;
+    const cx = band * 0.5;
+    const corners = [
+        [boardX - cx + boardCorner * 0.18, boardY - cx + boardCorner * 0.18],
+        [boardX + boardW + cx - boardCorner * 0.18, boardY - cx + boardCorner * 0.18],
+        [boardX - cx + boardCorner * 0.18, boardY + boardH + cx - boardCorner * 0.18],
+        [boardX + boardW + cx - boardCorner * 0.18, boardY + boardH + cx - boardCorner * 0.18]
+    ];
+    for (const [x, y] of corners) {
+        ctx.fillStyle = FRAME_EDGE;
+        ctx.beginPath(); ctx.arc(x, y + r * 0.25, r * 1.15, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = FRAME_HIGHLIGHT;
+        ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    }
+}
+
 // Draw complete map (order matters: later drawings appear on top)
 function drawMap() {
+    drawOutside();      // 0. forest outside the board
+    ctx.save();
+    clipToBoard();      //    everything below is only visible inside the board
     drawGrass();        // 1. grass
-    drawPaths();        // 2. shadows + ticket brick path + tiled walking paths
-    drawBridge();       // 3. bridge on top of R3
-    drawDottedRoute();  // 4. blue dots on top of the path and bridge
-    drawPlaces();       // 5. place badges and labels (they stand beside the path)
-    drawVisitor();      // 6. visitor pointer, always on top
+    drawWater();        // 2. lake and stream (under the paths and the bridge)
+    drawPaths();        // 3. shadows + ticket brick path + tiled walking paths
+    drawBridge();       // 4. bridge on top of R3
+    drawScenery();      // 5. trees, bushes, flowers, rocks, lily pads
+    drawButterflies();  // 6. butterflies fly over the scenery
+    drawDottedRoute();  // 7. blue dots on top of the path and bridge
+    drawPlaces();       // 8. place badges and labels (they stand beside the path)
+    drawVisitor();      // 9. visitor pointer, always on top
+    drawBoardInnerShadow();
+    ctx.restore();      //    end of the clip
+    drawFrame();        // 10. wooden frame around the board
 }
 
 // Animation loop: move things, then redraw
@@ -1154,5 +1994,13 @@ window.addEventListener("resize", resizeCanvas);
 
 // Start map. No arrival popup or information card appears on page load.
 hideProximityPopup();
+warnAboutSceneryOnPaths();          // prints a warning in the console if something stands on a path
+if (EDIT_MODE) setupEditor();       // scenery editor: open the page with ?edit
 resizeCanvas();
 requestAnimationFrame(animateRoute);
+
+// Opening screen: fades away after a moment (see ".splash" in style.css)
+const splash = document.getElementById("splash");
+if (splash) {
+    setTimeout(function () { splash.classList.add("hide"); }, 1700);
+}

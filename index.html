@@ -2,15 +2,24 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Zoo Guide</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Kamatibaug Zoo Navigation Guide</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
     <canvas id="zooMap"></canvas>
 
-    <!-- Information card (hidden until a place is tapped). Filled by place-card.js -->
+    <!-- Wooden hanging sign with the title -->
+    <header class="zoo-title">
+        <div class="zoo-title-icon" aria-hidden="true">&#128062;</div>
+        <div class="zoo-title-text">
+            <h1>Kamatibaug Zoo</h1>
+            <p>Navigation Guide</p>
+        </div>
+    </header>
+
+    <!-- Information card (hidden until "View Details" is pressed). Filled by place-card.js -->
     <div class="card-overlay" id="placeCard" aria-hidden="true">
         <div class="card" role="dialog" aria-modal="true" aria-labelledby="cardTitle">
 
@@ -56,6 +65,17 @@
                 </footer>
             </div>
 
+        </div>
+    </div>
+
+    <!-- Opening screen (fades away by itself, see main-map.js) -->
+    <div class="splash" id="splash">
+        <div class="splash-sign">
+            <h1>Kamatibaug Zoo</h1>
+            <p>Navigation Guide</p>
+        </div>
+        <div class="splash-paws" aria-hidden="true">
+            <span>&#128062;</span><span>&#128062;</span><span>&#128062;</span>
         </div>
     </div>
 

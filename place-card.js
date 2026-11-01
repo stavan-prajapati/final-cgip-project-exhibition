@@ -88,6 +88,11 @@ function openPlaceCard(id) {
     cardClose.focus();
 }
 
+// Used by the map: the visitor stands still while a card is open
+function isPlaceCardOpen() {
+    return cardOverlay.classList.contains("open");
+}
+
 function closePlaceCard() {
     cardOverlay.classList.remove("open");
     cardOverlay.setAttribute("aria-hidden", "true");
