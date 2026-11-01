@@ -7,18 +7,19 @@
     <link rel="stylesheet" href="aviary.css">
 </head>
 <body>
-    <header class="zoo-bar">
-        <a class="zoo-back" href="index.html?from=aviary">&larr; Back to Zoo Map</a>
-        <div class="zoo-bar-title">
-            <h1>Aviary</h1>
-            <p>Kamatibaug Zoo Navigation Guide</p>
+    <!-- The aviary map is drawn on this canvas by aviary.js (full screen, inside a wooden frame) -->
+    <canvas id="aviarySectionMap"></canvas>
+
+    <!-- Wooden hanging sign with the title (same as the main map) -->
+    <header class="zoo-title">
+        <div class="zoo-title-icon" aria-hidden="true">&#128062;</div>
+        <div class="zoo-title-text">
+            <h1>Kamatibaug Zoo</h1>
+            <p>Navigation Guide</p>
         </div>
     </header>
 
-    <main class="zoo-stage">
-        <!-- The zoo map will be drawn on this canvas by aviary.js -->
-        <canvas id="aviarySectionMap"></canvas>
-    </main>
+    <a class="zoo-back" href="index.html?from=aviary">&larr; Back to Zoo Map</a>
 
     <script src="aviary.js"></script>
 </body>
