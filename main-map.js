@@ -794,7 +794,7 @@ bridgePopup.className = "arrival-popup";
 bridgePopup.setAttribute("role", "status");
 bridgePopup.innerHTML =
     '<span class="arrival-popup-icon" aria-hidden="true">&#128010;</span>' +
-    '<span>Watch the animals of Vishwamitri?</span>' +
+    '<span>Want to see crocs of Vishwamitri river?</span>' +
     '<button id="bridgePopupButton" type="button">Watch</button>';
 document.body.appendChild(bridgePopup);
 bridgePopup.style.display = "none";

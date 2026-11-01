@@ -86,9 +86,9 @@ const placeDetails = {
         tagline: "Crocodiles of Vadodara's river",
 
         // Placeholder tiles shown instead of a single photo.
-        // Add  photo: "images/mugger.jpg"  to an animal to replace its placeholder.
+        // Put the photo at images/crocodile.jpg. Until the file exists, the placeholder is shown.
         animals: [
-            { name: "Mugger Crocodile", icon: "🐊", photo: "" }
+            { name: "Mugger Crocodile", icon: "🐊", photo: "images/crocodile.jpg" }
         ],
 
         facts: [
