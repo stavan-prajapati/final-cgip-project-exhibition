@@ -901,3 +901,76 @@ canvas {
         opacity: 0.9;
     }
 }
+
+/* ---------- Animal placeholder tiles (Vishwamitri card) ---------- */
+
+.animal-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    margin: 0 0 24px;
+}
+
+.animal-grid.single {
+    grid-template-columns: minmax(0, 460px);
+    justify-content: center;
+}
+
+.animal-tile {
+    margin: 0;
+}
+
+.animal-frame {
+    position: relative;
+    aspect-ratio: 4 / 3;
+    overflow: hidden;
+    border-radius: 18px;
+    background: linear-gradient(145deg, #dcebf0, #e6efe0);
+    border: 2px dashed color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.animal-frame img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.animal-fallback {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.animal-fallback span {
+    font-size: 56px;
+    line-height: 1;
+}
+
+.animal-fallback small {
+    color: #5b6f73;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.animal-tile figcaption {
+    margin-top: 10px;
+    text-align: center;
+    color: #24312d;
+    font-size: 15px;
+    font-weight: 700;
+}
+
+@media (max-width: 480px) {
+    .animal-grid {
+        gap: 10px;
+    }
+    .animal-fallback span {
+        font-size: 40px;
+    }
+}

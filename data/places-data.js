@@ -3,6 +3,7 @@
 //
 // Each key must match the place ID in main-map.js.
 // Ticket Counter, Aviary and Zoo Entrance are excluded.
+// "vishwamitri" is opened from the bridge (not from a place badge).
 // Aviary and Zoo Entrance will open their own maps.
 //
 // Images:
@@ -75,6 +76,38 @@ const placeDetails = {
 
         sources: [
             "History of Vadodara — Sayaji Baug"
+        ]
+    },
+
+    vishwamitri: {
+        icon: "🐊",
+        color: "#1e7f9c",
+        title: "Animals of the Vishwamitri",
+        tagline: "Crocodiles of Vadodara's river",
+
+        // Placeholder tiles shown instead of a single photo.
+        // Add  photo: "images/mugger.jpg"  to an animal to replace its placeholder.
+        animals: [
+            { name: "Mugger Crocodile", icon: "🐊", photo: "" }
+        ],
+
+        facts: [
+            "The Vishwamitri is a seasonal river that flows through the city of Vadodara, between the Mahi and Narmada rivers.",
+            "It is known for its population of mugger (marsh) crocodiles, which live in the river inside the city.",
+            "The river is also home to monitor lizards and many birds.",
+            "The mugger crocodile is listed as Vulnerable by the IUCN and is protected under Schedule I of India's Wildlife (Protection) Act, 1972."
+        ],
+
+        didYouKnow: "A 2015 night count along the river's stretch through Vadodara recorded about 250 muggers, from under 1 metre to over 4 metres long.",
+
+        visitTip: "Look quietly from the bridge. Please do not throw anything into the water or try to feed the animals.",
+
+        photos: [],
+
+        sources: [
+            "Down To Earth — Crocodile River: How many muggers does the Vishwamitri have?",
+            "IRCF Reptiles & Amphibians — Mugger Crocodile census, Vadodara City, 2015",
+            "Wildlife (Protection) Act, 1972"
         ]
     }
 

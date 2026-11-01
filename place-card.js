@@ -23,6 +23,52 @@ const cardTip     = document.getElementById("cardTip");
 const cardSources = document.getElementById("cardSources");
 const cardClose   = document.getElementById("cardClose");
 
+// Optional "animals" gallery (used by the Vishwamitri card): one tile per animal.
+// A tile shows the animal's photo if "photo" is set and loads, otherwise a placeholder.
+const cardPhotoFigure = cardImg.closest("figure");
+const cardAnimals = document.createElement("div");
+cardAnimals.className = "animal-grid";
+cardAnimals.hidden = true;
+cardPhotoFigure.parentNode.insertBefore(cardAnimals, cardPhotoFigure);
+
+function showAnimals(list) {
+    cardAnimals.innerHTML = "";
+    cardAnimals.classList.toggle("single", list.length === 1);
+    for (const animal of list) {
+        const tile = document.createElement("figure");
+        tile.className = "animal-tile";
+
+        const frame = document.createElement("div");
+        frame.className = "animal-frame";
+
+        const fallback = document.createElement("div");
+        fallback.className = "animal-fallback";
+        const icon = document.createElement("span");
+        icon.textContent = animal.icon || "";
+        const soon = document.createElement("small");
+        soon.textContent = "Photo coming soon";
+        fallback.appendChild(icon);
+        fallback.appendChild(soon);
+        frame.appendChild(fallback);
+
+        if (animal.photo) {
+            const img = document.createElement("img");
+            img.alt = animal.name;
+            img.hidden = true;
+            img.onload = function () { img.hidden = false; fallback.hidden = true; };
+            img.src = animal.photo;
+            frame.appendChild(img);
+        }
+
+        const caption = document.createElement("figcaption");
+        caption.textContent = animal.name;
+
+        tile.appendChild(frame);
+        tile.appendChild(caption);
+        cardAnimals.appendChild(tile);
+    }
+}
+
 // Put a list of text lines into a <ul>
 // (textContent is used on purpose: it shows text as plain text, never as HTML)
 function fillList(listElement, lines) {
@@ -70,7 +116,15 @@ function openPlaceCard(id) {
     cardTitle.textContent = data.title;
     cardTagline.textContent = data.tagline;
 
-    showPhoto(data.photos && data.photos[0], data.icon);
+    if (data.animals && data.animals.length) {
+        cardPhotoFigure.hidden = true;
+        cardAnimals.hidden = false;
+        showAnimals(data.animals);
+    } else {
+        cardAnimals.hidden = true;
+        cardPhotoFigure.hidden = false;
+        showPhoto(data.photos && data.photos[0], data.icon);
+    }
 
     fillList(cardFacts, data.facts || []);
 

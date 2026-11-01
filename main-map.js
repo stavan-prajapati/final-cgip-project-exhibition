@@ -321,8 +321,8 @@ function resizeCanvas() {
 // Built ONCE as shapes (Path2D), then drawn every frame right after the grass.
 // They are drawn BEFORE the water, paths and trees, so those simply cover them:
 // nothing needs to be cut out around the path.
-const TUFT_COUNT = 1000;
-const FLOWER_COUNT = 110;
+const TUFT_COUNT = 2600;
+const FLOWER_COUNT = 0;      // petal flowers are switched off (set to 110 to bring them back)
 const FLOWER_PETAL_COLORS = ["#f2e9d0", "#e58e92", "#f4c85a", "#b9a3e8"];
 let groundTuftsDark = null, groundTuftsLight = null;
 let groundFlowerPaths = null, groundFlowerCenters = null;
@@ -337,6 +337,11 @@ function buildGroundDetails() {
         p.moveTo(x, y); p.lineTo(x - 2, y - 5);
         p.moveTo(x, y); p.lineTo(x + 1, y - 6);
         p.moveTo(x, y); p.lineTo(x + 3, y - 4);
+        if (i % 3 === 1) {                 // every third tuft is a taller, fuller clump
+            p.moveTo(x, y); p.lineTo(x - 4, y - 9);
+            p.moveTo(x, y); p.lineTo(x + 2, y - 10);
+            p.moveTo(x, y); p.lineTo(x + 5, y - 7);
+        }
     }
 
     groundFlowerPaths = FLOWER_PETAL_COLORS.map(function () { return new Path2D(); });
@@ -776,6 +781,43 @@ proximityPopupButton.addEventListener("click", function () {
     openPlaceCard(id);
 });
 
+
+// ---------- Bridge popup: watch the animals of the Vishwamitri ----------
+// Shown while the visitor stands on the bridge (over the stream). The button opens the
+// "vishwamitri" information card (crocodile and turtle placeholders, see data/places-data.js).
+const BRIDGE_SPOT = { x: 350, y: 910, halfW: 46, halfH: 32 };
+let bridgeDismissed = false;
+
+const bridgePopup = document.createElement("div");
+bridgePopup.id = "bridgePopup";
+bridgePopup.className = "arrival-popup";
+bridgePopup.setAttribute("role", "status");
+bridgePopup.innerHTML =
+    '<span class="arrival-popup-icon" aria-hidden="true">&#128010;</span>' +
+    '<span>Watch the animals of Vishwamitri?</span>' +
+    '<button id="bridgePopupButton" type="button">Watch</button>';
+document.body.appendChild(bridgePopup);
+bridgePopup.style.display = "none";
+
+bridgePopup.querySelector("#bridgePopupButton").addEventListener("click", function () {
+    bridgeDismissed = true;                 // do not show it again until the visitor leaves the bridge
+    bridgePopup.style.display = "none";
+    if (typeof openPlaceCard === "function") openPlaceCard("vishwamitri");
+});
+
+function checkBridge() {
+    const onBridge = Math.abs(visitor.x - BRIDGE_SPOT.x) <= BRIDGE_SPOT.halfW &&
+                     Math.abs(visitor.y - BRIDGE_SPOT.y) <= BRIDGE_SPOT.halfH;
+
+    if (!onBridge) {
+        bridgePopup.style.display = "none";
+        bridgeDismissed = false;
+        return;
+    }
+    const cardOpen = typeof isPlaceCardOpen === "function" && isPlaceCardOpen();
+    bridgePopup.style.display = (cardOpen || bridgeDismissed) ? "none" : "flex";
+}
+
 // ======================================================================
 // SCENERY: lake, trees, bushes, flowers, rocks, lily pads and butterflies
 // Everything is drawn with Canvas shapes (no images). Move things by changing
@@ -809,20 +851,20 @@ const ripples = [
 // size = 1 is normal, 1.3 is bigger, 0.8 is smaller (optional)
 const scenery = [
     // forest in the top-left
-    { type: "tree", x: 110, y: 150, size: 1.2 },  { type: "tree", x: 190, y: 95 },
+    { type: "tree", x: 110, y: 150, size: 1.2 },  
     { type: "tree", x: 270, y: 70, size: 1.1 },   { type: "tree", x: 350, y: 140, size: 1.2 },
     { type: "tree", x: 430, y: 80 },              { type: "tree", x: 520, y: 130, size: 1.1 },
     { type: "tree", x: 95, y: 260, size: 1.1 },   { type: "tree", x: 170, y: 330, size: 1.2 },
     { type: "tree", x: 260, y: 250, size: 1.3 },  { type: "tree", x: 340, y: 310 },
     { type: "tree", x: 430, y: 230, size: 1.1 },  { type: "tree", x: 510, y: 300, size: 1.2 },
     { type: "tree", x: 590, y: 220 },
-    { type: "tree", x: 120, y: 430, size: 1.2 },  { type: "tree", x: 210, y: 470 },
-    { type: "tree", x: 390, y: 500, size: 1.2 },
+    { type: "tree", x: 210, y: 470 },
+    
     { type: "tree", x: 480, y: 440 },             { type: "tree", x: 560, y: 520, size: 1.1 },
 
     // around the north pond
-    { type: "tree", x: 115, y: 600, size: 1.1 },  { type: "tree", x: 200, y: 585 },
-    { type: "tree", x: 300, y: 600 },             { type: "tree", x: 380, y: 590, size: 0.9 },
+    { type: "tree", x: 200, y: 585 },
+    { type: "tree", x: 380, y: 590, size: 0.9 },
     { type: "rock", x: 118, y: 800 },             { type: "rock", x: 165, y: 835 },
     { type: "rock", x: 210, y: 848, size: 1.2 },  { type: "rock", x: 285, y: 850 },
     { type: "lily", x: 200, y: 700 },             { type: "lily", x: 255, y: 770, size: 1.2 },
@@ -830,7 +872,7 @@ const scenery = [
 
     // left of the stream, below the bridge
     { type: "tree", x: 110, y: 905, size: 1.2 },
-    { type: "tree", x: 95, y: 995, size: 1.2 },   { type: "tree", x: 175, y: 1035, size: 1.1 },
+    { type: "tree", x: 175, y: 1035, size: 1.1 },
 
     // stream and south pond
     { type: "lily", x: 350, y: 1015 },            { type: "lily", x: 345, y: 1065, size: 0.9 },
@@ -839,26 +881,31 @@ const scenery = [
     { type: "rock", x: 560, y: 1092 },            { type: "rock", x: 430, y: 1190, size: 1.2 },
 
     // forest in the bottom-right
-    { type: "tree", x: 540, y: 790, size: 1.1 },  { type: "tree", x: 620, y: 745 },
-    { type: "tree", x: 800, y: 745 },
+    { type: "tree", x: 620, y: 745 },
+    
     { type: "tree", x: 865, y: 805, size: 1.1 },
-    { type: "tree", x: 520, y: 885, size: 1.2 },  { type: "tree", x: 605, y: 935 },
+    { type: "tree", x: 520, y: 885, size: 1.2 },  
     { type: "tree", x: 700, y: 905, size: 1.1 },  
     { type: "tree", x: 860, y: 905 },
-    { type: "tree", x: 625, y: 1025, size: 1.1 }, { type: "tree", x: 715, y: 1055, size: 1.2 },
+    { type: "tree", x: 715, y: 1055, size: 1.2 },
     { type: "tree", x: 860, y: 1105, size: 1.1 },
-    { type: "tree", x: 645, y: 1135 },            { type: "tree", x: 745, y: 1175, size: 1.2 },
+    { type: "tree", x: 645, y: 1135 },            
     
     { type: "tree", x: 690, y: 1250 },            { type: "tree", x: 535, y: 1245, size: 1.1 },
-    { type: "flowers", x: 520, y: 735 },
-    { type: "flowers", x: 705, y: 830 },          { type: "flowers", x: 765, y: 995 },
+    
+    
 
     // near the aviary road and the clock
-    { type: "flowers", x: 420, y: 365 },          { type: "flowers", x: 262, y: 385 },
-    { type: "tree", x: 830, y: 95, size: 1.1 },   { type: "tree", x: 880, y: 165 },
-    { type: "tree", x: 870, y: 610, size: 1.1 },  { type: "tree", x: 880, y: 700 }
-];
-// Draw the ones with a smaller y first, so objects lower on the screen overlap the ones behind them
+    
+    { type: "tree", x: 880, y: 165 },
+    { type: "tree", x: 880, y: 700 },
+
+    // a few rocks along the pond edge
+    { type: "rock", x: 91, y: 750, size: 1.0 },
+    { type: "rock", x: 341, y: 656, size: 1.2 },
+    { type: "rock", x: 402, y: 1198, size: 0.9 },
+    { type: "rock", x: 400, y: 1014, size: 1.0 },
+    ];
 scenery.sort(function (a, b) { return a.y - b.y; });
 
 // Butterflies fly around a centre point (cx, cy) in a lazy figure-eight
@@ -903,6 +950,146 @@ function waterPath() {
             addRoundedRect(s.x, s.y, s.w, s.h, s.r);
         }
     }
+}
+
+// ---------- Crocodile ----------
+// It swims along a closed route: round the north pond, down the stream UNDER the bridge,
+// round the south pond, and back up the stream. The body follows the head along the route,
+// so it bends naturally. It is drawn inside the water clip, so it never leaves the water.
+const CROC_ROUTE = [
+    [345, 745], [300, 690], [230, 675], [170, 700], [150, 745], [190, 785], [255, 790], [310, 785],   // north pond
+    [338, 830], [338, 910], [338, 985],                                                              // down the stream (left lane)
+    [375, 1060], [440, 1078], [505, 1100], [470, 1140], [405, 1135], [368, 1090],                    // south pond
+    [362, 1020], [362, 940], [362, 870], [362, 810]                                                  // up the stream (right lane)
+];
+const CROC_SPEED = 17;          // map units per second (lower = slower)
+const CROC_SEGMENTS = 24;       // body is made of this many slices
+const CROC_SPACING = 4.2;       // distance between slices
+const CROC_OUTLINE = "#2c3d24", CROC_BODY = "#56743f", CROC_BACK = "#6f8f50";
+let crocPoints = null, crocCum = null, crocLength = 0;
+
+// Smooth closed curve through the route points (Catmull-Rom), stored with running lengths
+function buildCrocRoute() {
+    const P = CROC_ROUTE, n = P.length;
+    crocPoints = []; crocCum = [0];
+    for (let i = 0; i < n; i++) {
+        const p0 = P[(i - 1 + n) % n], p1 = P[i], p2 = P[(i + 1) % n], p3 = P[(i + 2) % n];
+        for (let k = 0; k < 20; k++) {
+            const u = k / 20, u2 = u * u, u3 = u2 * u;
+            crocPoints.push([
+                0.5 * (2 * p1[0] + (-p0[0] + p2[0]) * u + (2 * p0[0] - 5 * p1[0] + 4 * p2[0] - p3[0]) * u2 + (-p0[0] + 3 * p1[0] - 3 * p2[0] + p3[0]) * u3),
+                0.5 * (2 * p1[1] + (-p0[1] + p2[1]) * u + (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * u2 + (-p0[1] + 3 * p1[1] - 3 * p2[1] + p3[1]) * u3)
+            ]);
+        }
+    }
+    for (let i = 1; i < crocPoints.length; i++) {
+        crocCum.push(crocCum[i - 1] + Math.hypot(crocPoints[i][0] - crocPoints[i - 1][0], crocPoints[i][1] - crocPoints[i - 1][1]));
+    }
+    const last = crocPoints[crocPoints.length - 1], first = crocPoints[0];
+    crocLength = crocCum[crocCum.length - 1] + Math.hypot(first[0] - last[0], first[1] - last[1]);
+}
+
+// The point on the route after travelling distance d (the route repeats)
+function crocPointAt(d) {
+    d = ((d % crocLength) + crocLength) % crocLength;
+    let lo = 0, hi = crocPoints.length - 1;
+    while (lo < hi) {
+        const mid = (lo + hi + 1) >> 1;
+        if (crocCum[mid] <= d) lo = mid; else hi = mid - 1;
+    }
+    const a = crocPoints[lo], b = crocPoints[(lo + 1) % crocPoints.length];
+    const end = lo + 1 < crocCum.length ? crocCum[lo + 1] : crocLength;
+    const f = end > crocCum[lo] ? (d - crocCum[lo]) / (end - crocCum[lo]) : 0;
+    return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
+}
+
+// half-width of the body at slice k (0 = tip of the snout, last = tip of the tail)
+function crocHalfWidth(k) {
+    const w = [2.0, 2.4, 2.9, 3.4, 4.0, 5.2, 6.3, 5.8, 7.0, 8.0, 8.4, 8.4, 8.4, 8.3, 8.0, 7.4, 6.6];
+    if (k < w.length) return w[k];
+    return 6.6 * (CROC_SEGMENTS - 1 - k) / (CROC_SEGMENTS - 1 - (w.length - 1)) + 0.9;
+}
+
+// startFraction: where on the route it starts (0 to 1).  size: 1 = normal, 0.8 = a bit smaller.
+function drawCrocodile(t, startFraction, size) {
+    if (!crocPoints) buildCrocRoute();
+    const n = CROC_SEGMENTS;
+    const S = size || 1;
+    const head = t * CROC_SPEED + (startFraction || 0) * crocLength;
+
+    // 1. slice positions along the route, then a sideways wiggle that grows toward the tail
+    const base = [];
+    for (let k = 0; k < n; k++) base.push(crocPointAt(head - k * CROC_SPACING * S));
+    const pos = [], ang = [], nor = [];
+    for (let k = 0; k < n; k++) {
+        const a = base[Math.max(k - 1, 0)], b = base[Math.min(k + 1, n - 1)];
+        const angle = Math.atan2(a[1] - b[1], a[0] - b[0]);      // direction towards the head
+        const nx = -Math.sin(angle), ny = Math.cos(angle);
+        const wiggle = Math.sin(t * 3 - k * 0.55) * Math.min(k, 14) * 0.16 * S;
+        ang.push(angle); nor.push([nx, ny]);
+        pos.push([base[k][0] + nx * wiggle, base[k][1] + ny * wiggle]);
+    }
+
+    function slices(color, grow, shrink, dx, dy) {
+        ctx.fillStyle = color;
+        for (let k = n - 1; k >= 0; k--) {
+            ctx.beginPath();
+            ctx.ellipse(pos[k][0] + dx, pos[k][1] + dy, CROC_SPACING * 1.15 * S, Math.max(0.6, (crocHalfWidth(k) * shrink + grow) * S), ang[k], 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    // soft shadow in the water
+    slices("rgba(10, 40, 60, 0.16)", 1, 1, 3, 4);
+
+    // four paddling legs (drawn under the body, only the feet stick out)
+    ctx.fillStyle = CROC_BODY;
+    ctx.strokeStyle = CROC_OUTLINE;
+    ctx.lineWidth = 0.8;
+    for (const k of [8, 15]) {
+        for (const side of [-1, 1]) {
+            const x = pos[k][0] + nor[k][0] * side * crocHalfWidth(k) * 0.8 * S;
+            const y = pos[k][1] + nor[k][1] * side * crocHalfWidth(k) * 0.8 * S;
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.scale(S, S);
+            ctx.rotate(ang[k] + side * (0.95 + Math.sin(t * 3.2 + k + side) * 0.3));
+            ctx.beginPath(); ctx.ellipse(5.5, 0, 6.5, 2.5, 0, 0, Math.PI * 2);
+            ctx.fill(); ctx.stroke();
+            ctx.restore();
+        }
+    }
+
+    // body: dark outline, green body, lighter back
+    slices(CROC_OUTLINE, 1.3, 1, 0, 0);
+    slices(CROC_BODY, 0, 1, 0, 0);
+    slices(CROC_BACK, 0, 0.5, 0, 0);
+
+    // bony ridges along the back
+    ctx.fillStyle = "rgba(35, 55, 30, 0.7)";
+    for (let k = 7; k < n - 3; k += 2) {
+        ctx.beginPath(); ctx.arc(pos[k][0], pos[k][1], 1.2 * S, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // eyes and nostrils
+    for (const side of [-1, 1]) {
+        const ex = pos[5][0] + nor[5][0] * side * 3.9 * S, ey = pos[5][1] + nor[5][1] * side * 3.9 * S;
+        ctx.fillStyle = CROC_BODY; ctx.beginPath(); ctx.arc(ex, ey, 2.3 * S, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#d9b83c"; ctx.beginPath(); ctx.arc(ex, ey, 1.2 * S, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#1c2616"; ctx.beginPath(); ctx.arc(ex, ey, 0.5 * S, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#1c2616";
+        ctx.beginPath();
+        ctx.arc(pos[0][0] + nor[0][0] * side * 0.9 * S, pos[0][1] + nor[0][1] * side * 0.9 * S, 0.6 * S, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // little ring spreading from the snout
+    const phase = (t * 0.9 + (startFraction || 0) * 3) % 1;
+    ctx.strokeStyle = "rgba(255, 255, 255, " + ((1 - phase) * 0.45) + ")";
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.ellipse(pos[0][0], pos[0][1], (5 + phase * 16) * S, (5 + phase * 16) * 0.6 * S, ang[0], 0, Math.PI * 2);
+    ctx.stroke();
 }
 
 function drawWater() {
@@ -950,16 +1137,9 @@ function drawWater() {
     }
     ctx.globalAlpha = 1;
 
-    // current: short light streaks slide down the stream
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.35)";
-    ctx.lineWidth = 2;
-    ctx.lineCap = "round";
-    for (let i = 0; i < 8; i++) {
-        const y = 770 + ((t * 28 + i * 46) % 365);
-        const x = 350 + ((i % 3) - 1) * 10;
-        ctx.beginPath(); ctx.moveTo(x - 14, y); ctx.lineTo(x - 14, y + 12); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(x + 8, y + 6); ctx.lineTo(x + 8, y + 18); ctx.stroke();
-    }
+    // two crocodiles swimming through the ponds and under the bridge
+    drawCrocodile(t, 0, 1);         // big crocodile
+    drawCrocodile(t, 0.5, 0.82);    // second, slightly smaller, half a loop away
     ctx.restore();
 
     ctx.restore();
@@ -1832,7 +2012,7 @@ function buildOutside(screenW, screenH, pixelRatio) {
     const boardLeft = viewOffsetX + boardX * viewScale;
     const boardRight = boardLeft + boardW * viewScale;
     const keepOut = frameBand + 12;                  // trees stay this far away from the frame
-    const cell = Math.max(90, 165 * viewScale);      // one forest "cell" in pixels (bigger = fewer trees)
+    const cell = Math.max(110, 200 * viewScale);      // one forest "cell" in pixels (bigger = fewer trees)
     const MAX_DEPTH = 560;                           // forest is not drawn farther than this from the frame
 
     for (const side of [-1, 1]) {
@@ -1848,14 +2028,13 @@ function buildOutside(screenW, screenH, pixelRatio) {
                 const seed = r * 31 + k * 7 + (side < 0 ? 0 : 1000);
                 const pick = pseudoRandom(seed + 2.3);
 
-                // only green trees, a few flower patches and rocks
+                // only green trees and a few rocks
                 // (no bushes or pink trees outside the frame)
                 let type = "tree";
-                if (pick > 0.88) type = "flowers";
-                if (pick > 0.95) type = "rock";
+                if (pick > 0.92) type = "rock";
 
                 // leave some cells empty so the forest is not crowded
-                if (pseudoRandom(seed + 7.7) < 0.42) continue;
+                if (pseudoRandom(seed + 7.7) < 0.58) continue;
 
                 const size = viewScale * (0.85 + 0.45 * pseudoRandom(seed + 3.1));
                 let d = (k + 0.2 + 0.6 * pseudoRandom(seed)) * cell;     // distance from the frame
@@ -2038,6 +2217,7 @@ function animateRoute(now) {
 
     updateVisitor(dt);                   // the visitor moves with WASD / joystick
     checkNearbyPlace();                  // show View Details only after reaching a place
+    checkBridge();                       // on the bridge: offer to watch the Vishwamitri animals
 
     drawMap();
     requestAnimationFrame(animateRoute);
