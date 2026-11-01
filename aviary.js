@@ -273,11 +273,11 @@ const walkways = [
     //    path (bottom edge, right side, top edge) and leaves through the exit at the top.
     curvedLine([[680, 405], [715, 405], [762, 345], [850, 337], [928, 340], [995, 378],
                 [990, 452], [915, 485], [835, 483], [745, 460], [745, 543],
-                [1080, 540], [1080, 268], [810, 268], [810, 205]]),
+                [1080, 543], [1080, 268], [810, 268], [810, 205]]),
 
     // 2. and 3. Short side paths leading to the cages (dead ends).
     curvedLine([[933, 543], [933, 600]]),
-    curvedLine([[1079, 520], [1080, 610]])
+    curvedLine([[1080, 543], [1080, 610]])
 ];
 
 // Which ground "way" each walkway belongs to (walkways 1, 2 and 3 are all connected on the ground)
@@ -668,6 +668,8 @@ function transformPoint(M, p) {
 
 // ---------- Move the visitor ----------
 function updateVisitor(dt) {
+    if (typeof isBirdCardOpen === "function" && isBirdCardOpen()) return;   // the visitor stands still while a card is open
+
     // 1. read the controls (y grows downward on the screen)
     let ix = 0, iy = 0;
     if (keys["a"] || keys["arrowleft"])  ix -= 1;
@@ -1320,6 +1322,116 @@ function drawFrame() {
     ctx.restore();
 }
 
+// ======================================================================
+// BIRD SPOTS (placeholder markers)
+// ======================================================================
+// Every bird gets the SAME placeholder marker (a round badge + the bird's name).
+// When the visitor walks close to a marker, a popup "You reached ... [View Details]" appears,
+// and the button opens the bird card (bird-card.js, data from data/aviary-data.js).
+//
+// TO ADD ANOTHER BIRD: add one line to birdSpots.
+//   id    = the "id" of the bird in data/aviary-data.js
+//   point = where the marker stands. canvaPoint(x, y) uses the same sketch pixels as the walkways,
+//           so pick a spot on the grass just NEXT to a path (about 35 px from the path's center line,
+//           and with free grass below it, because the name label is drawn under the badge).
+const birdSpots = [
+    { id: "african-grey-parrot", point: canvaPoint(510, 284) }      // inside dome 1, just below its north path
+];
+
+const BIRD_TRIGGER = 80;          // how close the visitor must be (map units) to get the popup
+const BIRD_BADGE_RADIUS = 17;     // size of the round badge (screen pixels)
+
+function birdName(id) {
+    const bird = (typeof aviaryBirds !== "undefined") && aviaryBirds.find(function (b) { return b.id === id; });
+    return bird ? bird.name : id;
+}
+
+// The marker is drawn in SCREEN pixels, so the badge and the name always stay upright and the same
+// size, even when the map is turned a quarter turn on a phone.
+function drawBirdSpots() {
+    const t = performance.now() / 1000;
+
+    ctx.save();
+    ctx.setTransform(pixelRatioNow, 0, 0, pixelRatioNow, 0, 0);
+
+    for (const spot of birdSpots) {
+        const p = spot.point;
+        const sx = (viewMatrix[0] * p.x + viewMatrix[2] * p.y + viewMatrix[4]) / pixelRatioNow;
+        const sy = (viewMatrix[1] * p.x + viewMatrix[3] * p.y + viewMatrix[5]) / pixelRatioNow;
+        const R = BIRD_BADGE_RADIUS;
+
+        // soft pulsing ring
+        const pulse = (t * 0.8) % 1;
+        ctx.strokeStyle = "rgba(63, 143, 74, " + ((1 - pulse) * 0.55) + ")";
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(sx, sy, R + 3 + pulse * 12, 0, Math.PI * 2); ctx.stroke();
+
+        // badge: shadow, wooden ring, cream face, bird
+        ctx.fillStyle = "rgba(0, 0, 0, 0.28)";
+        ctx.beginPath(); ctx.arc(sx, sy + 2, R + 2, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#6f4524";
+        ctx.beginPath(); ctx.arc(sx, sy, R + 2, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#fff4d6";
+        ctx.beginPath(); ctx.arc(sx, sy, R - 1, 0, Math.PI * 2); ctx.fill();
+        ctx.font = "18px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = "#000";
+        ctx.fillText("🐦", sx, sy + 1);
+
+        // name label under the badge
+        const name = birdName(spot.id);
+        ctx.font = "700 12px 'Trebuchet MS', 'Segoe UI', sans-serif";
+        const w = ctx.measureText(name).width + 16;
+        const lx = sx - w / 2, ly = sy + R + 6, lh = 20;
+        ctx.fillStyle = "#6f4524";
+        ctx.beginPath();
+        ctx.moveTo(lx + 8, ly);
+        ctx.arcTo(lx + w, ly, lx + w, ly + lh, 8);
+        ctx.arcTo(lx + w, ly + lh, lx, ly + lh, 8);
+        ctx.arcTo(lx, ly + lh, lx, ly, 8);
+        ctx.arcTo(lx, ly, lx + w, ly, 8);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = "#4e3119";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.fillStyle = "#fff4d6";
+        ctx.fillText(name, sx, ly + lh / 2 + 0.5);
+    }
+    ctx.restore();
+}
+
+// ---------- "You reached ..." popup (same look as the main map) ----------
+const birdPopup = document.createElement("div");
+birdPopup.className = "arrival-popup";
+birdPopup.innerHTML =
+    '<span class="arrival-popup-icon">🐦</span>' +
+    '<span class="arrival-popup-text"></span>' +
+    '<button type="button">View Details</button>';
+document.body.appendChild(birdPopup);
+
+let birdNearby = null;            // the bird id the popup is showing now (or null)
+
+birdPopup.querySelector("button").addEventListener("click", function () {
+    if (birdNearby) openBirdCard(birdNearby);
+});
+
+function updateBirdPopup() {
+    let found = null;
+    for (const spot of birdSpots) {
+        if (Math.hypot(visitor.x - spot.point.x, visitor.y - spot.point.y) <= BIRD_TRIGGER) { found = spot.id; break; }
+    }
+    if (found === birdNearby) return;              // nothing changed
+    birdNearby = found;
+    if (found) {
+        birdPopup.querySelector(".arrival-popup-text").textContent = "You reached " + birdName(found);
+        birdPopup.style.display = "flex";
+    } else {
+        birdPopup.style.display = "none";
+    }
+}
+
 // Draw complete map (order matters: later drawings appear on top)
 function drawMap() {
     if (!baseLayer) return;
@@ -1336,7 +1448,8 @@ function drawMap() {
     if (visitorIsUnderBridge()) drawVisitor();       // 4. a visitor walking UNDER the bridge is drawn before the bridge
     drawLayer(bridgeLayer);                          // 5. the bridge lies over everything below it
     drawDottedRoute(guideRoutes);                    // 6. ONE continuous blue dotted line, entrance to exit
-    if (!visitorIsUnderBridge()) drawVisitor();      // 7. visitor pointer, on top
+    drawBirdSpots();                                 // 7. bird placeholder markers
+    if (!visitorIsUnderBridge()) drawVisitor();      // 8. visitor pointer, on top
 
     ctx.setTransform(pixelRatioNow, 0, 0, pixelRatioNow, 0, 0);
     drawBoardInnerShadow();
@@ -1420,6 +1533,7 @@ function animateRoute(now) {
     }
 
     updateVisitor(dt);                   // the visitor moves with WASD / joystick
+    updateBirdPopup();                   // "You reached ..." popup near a bird
 
     drawMap();
     requestAnimationFrame(animateRoute);
