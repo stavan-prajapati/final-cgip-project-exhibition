@@ -317,6 +317,63 @@ function resizeCanvas() {
     drawMap();
 }
 
+// ---------- Small grass tufts and little petal flowers ----------
+// Built ONCE as shapes (Path2D), then drawn every frame right after the grass.
+// They are drawn BEFORE the water, paths and trees, so those simply cover them:
+// nothing needs to be cut out around the path.
+const TUFT_COUNT = 1000;
+const FLOWER_COUNT = 110;
+const FLOWER_PETAL_COLORS = ["#f2e9d0", "#e58e92", "#f4c85a", "#b9a3e8"];
+let groundTuftsDark = null, groundTuftsLight = null;
+let groundFlowerPaths = null, groundFlowerCenters = null;
+
+function buildGroundDetails() {
+    groundTuftsDark = new Path2D();
+    groundTuftsLight = new Path2D();
+    for (let i = 0; i < TUFT_COUNT; i++) {
+        const x = VIEW_X + 8 + pseudoRandom(i * 1.9 + 11) * (VIEW_W - 16);
+        const y = VIEW_Y + 8 + pseudoRandom(i * 3.3 + 5) * (VIEW_H - 16);
+        const p = i % 3 === 0 ? groundTuftsDark : groundTuftsLight;
+        p.moveTo(x, y); p.lineTo(x - 2, y - 5);
+        p.moveTo(x, y); p.lineTo(x + 1, y - 6);
+        p.moveTo(x, y); p.lineTo(x + 3, y - 4);
+    }
+
+    groundFlowerPaths = FLOWER_PETAL_COLORS.map(function () { return new Path2D(); });
+    groundFlowerCenters = new Path2D();
+    for (let i = 0; i < FLOWER_COUNT; i++) {
+        const x = VIEW_X + 14 + pseudoRandom(i * 2.7 + 41) * (VIEW_W - 28);
+        const y = VIEW_Y + 14 + pseudoRandom(i * 4.9 + 17) * (VIEW_H - 28);
+        const petals = groundFlowerPaths[i % FLOWER_PETAL_COLORS.length];
+        for (let a = 0; a < 5; a++) {
+            const ang = a * Math.PI * 2 / 5;
+            const px = x + Math.cos(ang) * 4, py = y + Math.sin(ang) * 4;
+            petals.moveTo(px + 2.3, py);
+            petals.arc(px, py, 2.3, 0, Math.PI * 2);
+        }
+        groundFlowerCenters.moveTo(x + 2.2, y);
+        groundFlowerCenters.arc(x, y, 2.2, 0, Math.PI * 2);
+    }
+}
+
+function drawGroundDetails() {
+    if (!groundTuftsDark) buildGroundDetails();
+
+    ctx.save();
+    ctx.lineWidth = 1.2;
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "#68985f"; ctx.stroke(groundTuftsDark);
+    ctx.strokeStyle = "#bcd69d"; ctx.stroke(groundTuftsLight);
+
+    for (let i = 0; i < groundFlowerPaths.length; i++) {
+        ctx.fillStyle = FLOWER_PETAL_COLORS[i];
+        ctx.fill(groundFlowerPaths[i]);
+    }
+    ctx.fillStyle = "#e9b23a";
+    ctx.fill(groundFlowerCenters);
+    ctx.restore();
+}
+
 // Draw green grass over the whole screen
 function drawGrass() {
     ctx.save();
@@ -747,24 +804,24 @@ const ripples = [
 ];
 
 // ---------- Trees, bushes, flowers, rocks, lily pads ----------
-// type: "tree", "blossom" (pink tree), "pine", "bush", "flowers", "rock", "lily"
+// type: "tree", "bush", "flowers", "rock", "lily"
 // x, y = the spot where the object touches the ground (its base), in map units
 // size = 1 is normal, 1.3 is bigger, 0.8 is smaller (optional)
 const scenery = [
     // forest in the top-left
     { type: "tree", x: 110, y: 150, size: 1.2 },  { type: "tree", x: 190, y: 95 },
-    { type: "pine", x: 270, y: 70, size: 1.1 },   { type: "tree", x: 350, y: 140, size: 1.2 },
-    { type: "pine", x: 430, y: 80 },              { type: "tree", x: 520, y: 130, size: 1.1 },
-    { type: "tree", x: 95, y: 260, size: 1.1 },   { type: "pine", x: 170, y: 330, size: 1.2 },
+    { type: "tree", x: 270, y: 70, size: 1.1 },   { type: "tree", x: 350, y: 140, size: 1.2 },
+    { type: "tree", x: 430, y: 80 },              { type: "tree", x: 520, y: 130, size: 1.1 },
+    { type: "tree", x: 95, y: 260, size: 1.1 },   { type: "tree", x: 170, y: 330, size: 1.2 },
     { type: "tree", x: 260, y: 250, size: 1.3 },  { type: "tree", x: 340, y: 310 },
-    { type: "pine", x: 430, y: 230, size: 1.1 },  { type: "tree", x: 510, y: 300, size: 1.2 },
+    { type: "tree", x: 430, y: 230, size: 1.1 },  { type: "tree", x: 510, y: 300, size: 1.2 },
     { type: "tree", x: 590, y: 220 },
-    { type: "tree", x: 120, y: 430, size: 1.2 },  { type: "pine", x: 210, y: 470 },
-    { type: "tree", x: 300, y: 430, size: 1.1 },  { type: "tree", x: 390, y: 500, size: 1.2 },
-    { type: "pine", x: 480, y: 440 },             { type: "tree", x: 560, y: 520, size: 1.1 },
+    { type: "tree", x: 120, y: 430, size: 1.2 },  { type: "tree", x: 210, y: 470 },
+    { type: "tree", x: 390, y: 500, size: 1.2 },
+    { type: "tree", x: 480, y: 440 },             { type: "tree", x: 560, y: 520, size: 1.1 },
 
     // around the north pond
-    { type: "tree", x: 115, y: 600, size: 1.1 },  { type: "pine", x: 200, y: 585 },
+    { type: "tree", x: 115, y: 600, size: 1.1 },  { type: "tree", x: 200, y: 585 },
     { type: "tree", x: 300, y: 600 },             { type: "tree", x: 380, y: 590, size: 0.9 },
     { type: "rock", x: 118, y: 800 },             { type: "rock", x: 165, y: 835 },
     { type: "rock", x: 210, y: 848, size: 1.2 },  { type: "rock", x: 285, y: 850 },
@@ -773,7 +830,7 @@ const scenery = [
 
     // left of the stream, below the bridge
     { type: "tree", x: 110, y: 905, size: 1.2 },
-    { type: "pine", x: 95, y: 995, size: 1.2 },   { type: "tree", x: 175, y: 1035, size: 1.1 },
+    { type: "tree", x: 95, y: 995, size: 1.2 },   { type: "tree", x: 175, y: 1035, size: 1.1 },
 
     // stream and south pond
     { type: "lily", x: 350, y: 1015 },            { type: "lily", x: 345, y: 1065, size: 0.9 },
@@ -782,24 +839,24 @@ const scenery = [
     { type: "rock", x: 560, y: 1092 },            { type: "rock", x: 430, y: 1190, size: 1.2 },
 
     // forest in the bottom-right
-    { type: "tree", x: 540, y: 790, size: 1.1 },  { type: "pine", x: 620, y: 745 },
-    { type: "tree", x: 710, y: 785, size: 1.2 },  { type: "pine", x: 800, y: 745 },
+    { type: "tree", x: 540, y: 790, size: 1.1 },  { type: "tree", x: 620, y: 745 },
+    { type: "tree", x: 800, y: 745 },
     { type: "tree", x: 865, y: 805, size: 1.1 },
-    { type: "tree", x: 520, y: 885, size: 1.2 },  { type: "pine", x: 605, y: 935 },
-    { type: "tree", x: 700, y: 905, size: 1.1 },  { type: "tree", x: 795, y: 935, size: 1.2 },
-    { type: "pine", x: 860, y: 905 },
-    { type: "tree", x: 625, y: 1025, size: 1.1 }, { type: "pine", x: 715, y: 1055, size: 1.2 },
-    { type: "tree", x: 810, y: 1035 },            { type: "tree", x: 860, y: 1105, size: 1.1 },
-    { type: "pine", x: 645, y: 1135 },            { type: "tree", x: 745, y: 1175, size: 1.2 },
-    { type: "tree", x: 600, y: 1235, size: 1.1 },
-    { type: "pine", x: 690, y: 1250 },            { type: "tree", x: 535, y: 1245, size: 1.1 },
+    { type: "tree", x: 520, y: 885, size: 1.2 },  { type: "tree", x: 605, y: 935 },
+    { type: "tree", x: 700, y: 905, size: 1.1 },  
+    { type: "tree", x: 860, y: 905 },
+    { type: "tree", x: 625, y: 1025, size: 1.1 }, { type: "tree", x: 715, y: 1055, size: 1.2 },
+    { type: "tree", x: 860, y: 1105, size: 1.1 },
+    { type: "tree", x: 645, y: 1135 },            { type: "tree", x: 745, y: 1175, size: 1.2 },
+    
+    { type: "tree", x: 690, y: 1250 },            { type: "tree", x: 535, y: 1245, size: 1.1 },
     { type: "flowers", x: 520, y: 735 },
     { type: "flowers", x: 705, y: 830 },          { type: "flowers", x: 765, y: 995 },
 
     // near the aviary road and the clock
     { type: "flowers", x: 420, y: 365 },          { type: "flowers", x: 262, y: 385 },
-    { type: "tree", x: 830, y: 95, size: 1.1 },   { type: "pine", x: 880, y: 165 },
-    { type: "tree", x: 870, y: 610, size: 1.1 },  { type: "pine", x: 880, y: 700 }
+    { type: "tree", x: 830, y: 95, size: 1.1 },   { type: "tree", x: 880, y: 165 },
+    { type: "tree", x: 870, y: 610, size: 1.1 },  { type: "tree", x: 880, y: 700 }
 ];
 // Draw the ones with a smaller y first, so objects lower on the screen overlap the ones behind them
 scenery.sort(function (a, b) { return a.y - b.y; });
@@ -810,7 +867,10 @@ const butterflies = [
     { cx: 560, cy: 410, ax: 60, ay: 35, speed: 0.65, color: "#ff7ab6" },
     { cx: 600, cy: 850, ax: 80, ay: 45, speed: 0.5,  color: "#ffffff" },
     { cx: 200, cy: 980, ax: 40, ay: 45, speed: 0.6,  color: "#ffd54f" },
-    { cx: 500, cy: 1215, ax: 60, ay: 25, speed: 0.7, color: "#b388ff" }
+    { cx: 500, cy: 1215, ax: 60, ay: 25, speed: 0.7, color: "#a58fd6" },
+    { cx: 250, cy: 230, ax: 55, ay: 35, speed: 0.6, color: "#8fc2ee" },
+    { cx: 770, cy: 650, ax: 50, ay: 40, speed: 0.52, color: "#ff9f43" },
+    { cx: 720, cy: 1100, ax: 65, ay: 40, speed: 0.58, color: "#fff176" }
 ];
 
 const TREE_PALETTES = [
@@ -818,7 +878,6 @@ const TREE_PALETTES = [
     { dark: "#33691e", mid: "#558b2f", light: "#8bc34a" },
     { dark: "#1b5e20", mid: "#2e7d32", light: "#56a95b" }
 ];
-const BLOSSOM_PALETTE = { dark: "#d96b93", mid: "#f48fb1", light: "#ffc1d6" };
 const FLOWER_COLORS = ["#ff6f91", "#ffd54f", "#ffffff", "#ff9f43", "#b388ff", "#ff6f91", "#ffd54f"];
 
 // ---------- Lake drawing ----------
@@ -924,43 +983,42 @@ function groundShadow(rx, ry) {
     ctx.fill();
 }
 
-// Round tree: brown trunk and a canopy made of overlapping circles
-function drawRoundTree(p) {
-    ctx.fillStyle = "#6b4423";
+// Round tree in the style of the aviary map: soft shadow, brown trunk, and a canopy of
+// overlapping green blobs with a small highlight. Drawn around (0, 0) = base on the ground.
+// No pink trees: every round tree is green (3 slightly different greens for variety).
+const ROUND_TREE_COLORS = [
+    ["#3f7a46", "#5f9a58", "#356b3e", "#74ab66"],
+    ["#3b7340", "#58934f", "#306338", "#6ea35f"],
+    ["#437f49", "#64a05b", "#3a7141", "#7bb06b"]
+];
+function drawRoundTree(seed) {
+    const c = ROUND_TREE_COLORS[Math.floor((seed || 0) * 3) % 3];
+    ctx.save();
+    ctx.translate(0, -22);
+    ctx.scale(1.3, 1.3);
+
+    // soft ground shadow
+    ctx.fillStyle = "rgba(47, 74, 44, 0.19)";
+    ctx.beginPath(); ctx.ellipse(6, 16, 22, 11, 0, 0, Math.PI * 2); ctx.fill();
+
+    // trunk
+    ctx.fillStyle = "#78593c";
     ctx.beginPath();
-    ctx.moveTo(-6, 0); ctx.lineTo(6, 0); ctx.lineTo(4, -42); ctx.lineTo(-4, -42);
-    ctx.closePath();
+    if (ctx.roundRect) ctx.roundRect(-4, -2, 8, 24, 3); else ctx.rect(-4, -2, 8, 24);
     ctx.fill();
 
-    // dark layer at the back, lighter layers in front, tiny highlights on top
-    blob(-17, -52, 23, p.dark); blob(17, -52, 23, p.dark); blob(0, -70, 27, p.dark);
-    blob(-15, -56, 19, p.mid);  blob(15, -56, 19, p.mid);  blob(0, -74, 22, p.mid);
-    blob(-9, -76, 10, p.light); blob(10, -66, 8, p.light);
-}
-
-// Pine tree: three triangles stacked on a short trunk
-function drawPine() {
-    ctx.fillStyle = "#6b4423";
-    ctx.fillRect(-4, -18, 8, 18);
-
-    const layers = [
-        { base: -14, half: 30, height: 34 },
-        { base: -36, half: 25, height: 32 },
-        { base: -58, half: 19, height: 30 }
-    ];
-    for (const l of layers) {
-        ctx.fillStyle = "#1f5f35";
-        ctx.beginPath();
-        ctx.moveTo(0, l.base - l.height); ctx.lineTo(-l.half, l.base); ctx.lineTo(l.half, l.base);
-        ctx.closePath();
-        ctx.fill();
-
-        ctx.fillStyle = "#2f8046";               // lighter side
-        ctx.beginPath();
-        ctx.moveTo(0, l.base - l.height + 3); ctx.lineTo(-l.half + 5, l.base - 2); ctx.lineTo(-1, l.base - 2);
-        ctx.closePath();
-        ctx.fill();
+    // canopy: four overlapping blobs [dx, dy, radius]
+    const blobs = [[0, -8, 18, c[0]], [-9, -13, 11, c[1]], [9, -3, 12, c[2]], [2, -17, 9, c[3]]];
+    for (const b of blobs) {
+        ctx.fillStyle = b[3];
+        ctx.beginPath(); ctx.arc(b[0], b[1], b[2], 0, Math.PI * 2); ctx.fill();
     }
+
+    // highlight
+    ctx.fillStyle = "rgba(255, 255, 255, 0.13)";
+    ctx.beginPath(); ctx.arc(-6, -16, 5, 0, Math.PI * 2); ctx.fill();
+
+    ctx.restore();
 }
 
 // Bush: a low cluster of circles (some bushes carry berries)
@@ -1052,20 +1110,10 @@ function drawSceneryItem(item, t) {
     ctx.scale(size, size);                // SCALING: make it bigger or smaller
 
     switch (item.type) {
+        case "blossom":      // old pink tree type: now just a green tree
         case "tree":
-            groundShadow(26, 7);
             ctx.rotate(sway);             // ROTATION: sway around the base
-            drawRoundTree(TREE_PALETTES[Math.floor(seed * 3) % 3]);
-            break;
-        case "blossom":
-            groundShadow(26, 7);
-            ctx.rotate(sway);
-            drawRoundTree(BLOSSOM_PALETTE);
-            break;
-        case "pine":
-            groundShadow(24, 6);
-            ctx.rotate(sway * 0.8);
-            drawPine();
+            drawRoundTree(seed);
             break;
         case "bush":
             groundShadow(24, 6);
@@ -1190,7 +1238,7 @@ function setupEditor() {
     const coords = panel.querySelector("#editCoords");
     const typeBox = panel.querySelector(".edit-types");
 
-    for (const type of ["tree", "blossom", "pine", "bush", "flowers", "rock", "lily"]) {
+    for (const type of ["tree", "bush", "flowers", "rock", "lily"]) {
         const button = document.createElement("button");
         button.type = "button";
         button.textContent = type;
@@ -1319,6 +1367,7 @@ const VISITOR_START = { x: 800, y: 245 };   // ENTRY POINT: the ticket path, nex
 const VISITOR_RADIUS = 15;                  // size of the pointer (also its collision circle)
 const VISITOR_SCREEN_SPEED = 130;            // how fast the pointer moves ON THE SCREEN (pixels per second), the same on every device
 const VISITOR_COLOR = "#168bff";
+const JOYSTICK_SPEED_FACTOR = 0.72;           // 1 = same as keyboard, 0.72 = a bit slower on the phone joystick (lower = slower)
 
 // The visitor may walk on every path rectangle (the bridge is R3, so it is included)
 const walkableRects = pathRects.concat(ticketPathRects);
@@ -1560,8 +1609,8 @@ function updateVisitor(dt) {
     if (keys["d"] || keys["arrowright"]) ix += 1;
     if (keys["w"] || keys["arrowup"])    iy -= 1;
     if (keys["s"] || keys["arrowdown"])  iy += 1;
-    ix += joy.x;
-    iy += joy.y;
+    ix += joy.x * JOYSTICK_SPEED_FACTOR;     // phone / tablet joystick: a bit slower than the keyboard
+    iy += joy.y * JOYSTICK_SPEED_FACTOR;
 
     const len = Math.hypot(ix, iy);
     if (len < 0.01) return;                    // not moving
@@ -1799,15 +1848,14 @@ function buildOutside(screenW, screenH, pixelRatio) {
                 const seed = r * 31 + k * 7 + (side < 0 ? 0 : 1000);
                 const pick = pseudoRandom(seed + 2.3);
 
-                // only green trees, pines, a few flower patches and rocks
+                // only green trees, a few flower patches and rocks
                 // (no bushes or pink trees outside the frame)
                 let type = "tree";
-                if (pick > 0.50) type = "pine";
                 if (pick > 0.88) type = "flowers";
                 if (pick > 0.95) type = "rock";
 
                 // leave some cells empty so the forest is not crowded
-                if (pseudoRandom(seed + 7.7) < 0.3) continue;
+                if (pseudoRandom(seed + 7.7) < 0.42) continue;
 
                 const size = viewScale * (0.85 + 0.45 * pseudoRandom(seed + 3.1));
                 let d = (k + 0.2 + 0.6 * pseudoRandom(seed)) * cell;     // distance from the frame
@@ -1961,6 +2009,7 @@ function drawMap() {
     ctx.save();
     clipToBoard();      //    everything below is only visible inside the board
     drawGrass();        // 1. grass
+    drawGroundDetails();//    small grass tufts and petal flowers (covered by water, paths and trees)
     drawWater();        // 2. lake and stream (under the paths and the bridge)
     drawPaths();        // 3. shadows + ticket brick path + tiled walking paths
     drawBridge();       // 4. bridge on top of R3
