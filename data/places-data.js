@@ -4,7 +4,7 @@
 // Each key must match the place ID in main-map.js.
 // Ticket Counter, Aviary and Zoo Entrance are excluded.
 // "vishwamitri" is opened from the bridge (not from a place badge).
-// Aviary and Zoo Entrance will open their own maps.
+// Aviary and Zoo Entrance open their own pages (aviary.html, zoo.html) - see PAGE_LINKS in main-map.js.
 //
 // Images:
 // Museum: images/museum.jpg

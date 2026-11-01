@@ -1,0 +1,59 @@
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    color: #26323a;
+    background: #a9c791;
+}
+
+.zoo-bar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 14px clamp(16px, 3vw, 34px);
+    color: #fff;
+    background: linear-gradient(110deg, #173b2b, #2c6043);
+}
+
+.zoo-back {
+    padding: 8px 13px;
+    border: 1px solid #ffffff40;
+    border-radius: 30px;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    text-decoration: none;
+    white-space: nowrap;
+}
+.zoo-back:hover { background: #ffffff1a; }
+
+.zoo-bar-title h1 { margin: 0; font-size: 20px; }
+.zoo-bar-title p  { margin: 3px 0 0; color: #d0e0d2; font-size: 13px; }
+
+.zoo-stage {
+    position: relative;
+    height: calc(100vh - 76px);
+}
+
+#zooSectionMap {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.zoo-soon {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    padding: 22px 30px;
+    text-align: center;
+    background: #fbfcfa;
+    border: 1px solid #c4ccc6;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+.zoo-soon h2 { margin: 0 0 6px; font-size: 20px; }
+.zoo-soon p  { margin: 0; color: #5b6b63; font-size: 14px; }

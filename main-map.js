@@ -110,6 +110,13 @@ const routes = [
 // Change x and y to move a place. "type" picks its icon and color:
 //   "gate" = zoo entrance, "ticket" = ticket counter, "aviary" = bird,
 //   "clock" = clock, "museum" = museum building
+// Places that open ANOTHER page (their own map) instead of an information card.
+// The prompt text and button come from here; "page" is the file that opens.
+const PAGE_LINKS = {
+    aviary: { page: "aviary.html", question: "Visit the Walk-in Aviary?", button: "Visit Aviary" },
+    gate:   { page: "zoo.html",     question: "Visit the Zoo?",            button: "Visit Zoo" }
+};
+
 const places = [
     { id: "aviary", name: "Walk-in Aviary",  type: "aviary", x: 710, y: 75,  arrive: 135 },
     { id: "ticket", name: "Ticket Counter",  type: "ticket", x: 840, y: 245 },
@@ -774,7 +781,13 @@ function hideProximityPopup() {
 }
 
 proximityPopupButton.addEventListener("click", function () {
-    if (!popupPlaceId || typeof openPlaceCard !== "function") return;
+    if (!popupPlaceId) return;
+    const link = PAGE_LINKS[popupPlaceId];
+    if (link) {                              // Aviary / Zoo: open that page
+        window.location.href = link.page;
+        return;
+    }
+    if (typeof openPlaceCard !== "function") return;
     const id = popupPlaceId;
     popupDismissedFor = id;
     hideProximityPopup();
@@ -1555,6 +1568,15 @@ const walkableRects = pathRects.concat(ticketPathRects);
 // heading = angle the pointer faces (0 = right, PI = left)
 const visitor = { x: VISITOR_START.x, y: VISITOR_START.y, heading: Math.PI };
 
+// Coming back from another page (aviary.html?  zoo.html): start just outside that place,
+// so the visitor does not get the "Visit ..." prompt again straight away.
+const RETURN_SPOTS = { aviary: { x: 710, y: 270 }, zoo: { x: 215, y: 1170 } };
+const returnedFrom = new URLSearchParams(window.location.search).get("from");
+if (RETURN_SPOTS[returnedFrom]) {
+    visitor.x = RETURN_SPOTS[returnedFrom].x;
+    visitor.y = RETURN_SPOTS[returnedFrom].y;
+}
+
 // ---------- Collision (boundary / clipping test) ----------
 // Is the point (px, py) inside at least one walkable rectangle?
 function pointOnPath(px, py) {
@@ -1940,7 +1962,9 @@ function checkNearbyPlace() {
 
     if (popupPlaceId !== arrivedPlace.id) {
         popupPlaceId = arrivedPlace.id;
-        proximityPopupText.textContent = "You reached " + arrivedPlace.name + ".";
+        const link = PAGE_LINKS[arrivedPlace.id];
+        proximityPopupText.textContent = link ? link.question : "You reached " + arrivedPlace.name + ".";
+        proximityPopupButton.textContent = link ? link.button : "View Details";
         proximityPopup.style.display = "flex";
     }
 }
