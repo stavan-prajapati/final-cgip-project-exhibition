@@ -1374,6 +1374,60 @@ function birdName(id) {
     return bird ? bird.name : id;
 }
 
+// ---------- Bird name label (a small stacked sign) ----------
+// The colour is NOT brown, so the label never blends into the wooden bridge. Change these 2 colours freely.
+const LABEL_COLOR = "#17575f";     // deep teal
+const LABEL_EDGE  = "#0d3b41";     // darker edge
+const LABEL_FONT  = "700 12px 'Trebuchet MS', 'Segoe UI', sans-serif";
+const LABEL_LINE  = 14;            // height of one line of text (screen pixels)
+const LABEL_ONE_LINE_MAX = 84;     // a name narrower than this stays on ONE line
+
+// Split a name into 1 to 3 short lines. Breaks are allowed at spaces and after hyphens, and the
+// breaks are chosen so the longest line is as short as possible ("Blue-and-" / "Golden Macaw").
+function stackName(name) {
+    ctx.save();
+    ctx.font = LABEL_FONT;
+    const width = function (t) { return ctx.measureText(t).width; };
+
+    // pieces + what goes between them ("" after a hyphen, " " after a space)
+    const pieces = [], glue = [];
+    const words = name.split(" ");
+    words.forEach(function (word, wi) {
+        const parts = word.split(/(?<=-)/);
+        parts.forEach(function (part, pi) {
+            pieces.push(part);
+            glue.push(pi < parts.length - 1 ? "" : (wi < words.length - 1 ? " " : ""));
+        });
+    });
+    const join = function (from, to) {           // pieces from..to-1 as one line
+        let t = "";
+        for (let i = from; i < to; i++) t += pieces[i] + (i < to - 1 ? glue[i] : "");
+        return t;
+    };
+
+    let best = [name];
+    if (width(name) > LABEL_ONE_LINE_MAX && pieces.length > 1) {
+        let bestMax = Infinity;
+        const n = pieces.length;
+        for (let i = 1; i < n; i++) {                       // 2 lines
+            const l = [join(0, i), join(i, n)];
+            const m = Math.max(width(l[0]), width(l[1]));
+            if (m < bestMax) { bestMax = m; best = l; }
+        }
+        if (bestMax > 100) {                                // still wide: try 3 lines
+            for (let i = 1; i < n; i++) {
+                for (let j = i + 1; j < n; j++) {
+                    const l = [join(0, i), join(i, j), join(j, n)];
+                    const m = Math.max(width(l[0]), width(l[1]), width(l[2]));
+                    if (m < bestMax - 4) { bestMax = m; best = l; }
+                }
+            }
+        }
+    }
+    ctx.restore();
+    return best;
+}
+
 // The marker is drawn in SCREEN pixels, so the badge and the name always stay upright and the same
 // size, even when the map is turned a quarter turn on a phone.
 function drawBirdSpots() {
@@ -1408,17 +1462,24 @@ function drawBirdSpots() {
         ctx.fillStyle = "#000";
         ctx.fillText("🐦", sx, sy + 1);
 
-        // name label under the badge
-        const name = birdName(spot.id);
-        ctx.font = "700 12px 'Trebuchet MS', 'Segoe UI', sans-serif";
-        const w = ctx.measureText(name).width + 16;
+        // name label: a small STACKED sign (two or three short lines), so it stays narrow
+        const lines = stackName(birdName(spot.id));
+        ctx.font = LABEL_FONT;
+        let w = 0;
+        for (const line of lines) w = Math.max(w, ctx.measureText(line).width);
+        w += 16;
+        const lh = lines.length * LABEL_LINE + 8;
         // the name goes under the badge; if another bird stands close by, it goes ABOVE the badge instead,
         // so two neighbouring names never print on top of each other
-        const crowded = placedMarkers.some(function (q) { return Math.abs(q.x - sx) < 150 && Math.abs(q.y - sy) < 56; });
+        const crowded = placedMarkers.some(function (q) { return Math.abs(q.x - sx) < 110 && Math.abs(q.y - sy) < 90; });
         placedMarkers.push({ x: sx, y: sy });
-        const lh = 20;
-        const lx = sx - w / 2, ly = crowded ? sy - R - 6 - lh : sy + R + 6;
-        ctx.fillStyle = "#6f4524";
+        let lx = sx - w / 2, ly = crowded ? sy - R - 6 - lh : sy + R + 6;
+        // keep the whole label inside the screen (important on a phone)
+        lx = Math.max(6, Math.min(lx, window.innerWidth - w - 6));
+        ly = Math.max(6, Math.min(ly, window.innerHeight - lh - 6));
+        const cx = lx + w / 2;
+
+        ctx.fillStyle = LABEL_COLOR;
         ctx.beginPath();
         ctx.moveTo(lx + 8, ly);
         ctx.arcTo(lx + w, ly, lx + w, ly + lh, 8);
@@ -1427,11 +1488,15 @@ function drawBirdSpots() {
         ctx.arcTo(lx, ly, lx + w, ly, 8);
         ctx.closePath();
         ctx.fill();
-        ctx.strokeStyle = "#4e3119";
+        ctx.strokeStyle = LABEL_EDGE;
         ctx.lineWidth = 1.5;
         ctx.stroke();
         ctx.fillStyle = "#fff4d6";
-        ctx.fillText(name, sx, ly + lh / 2 + 0.5);
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        for (let i = 0; i < lines.length; i++) {
+            ctx.fillText(lines[i], cx, ly + 4 + LABEL_LINE * (i + 0.5) + 0.5);
+        }
     }
     ctx.restore();
 }
