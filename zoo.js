@@ -1005,10 +1005,157 @@ function makeLayer(drawIt) {
     return layer;
 }
 
+// ---------- Grass tufts and little petal flowers (same look as the main map) ----------
+// Drawn in map units, right after the grass and BEFORE the paths, so the paths simply cover them.
+const TUFT_DENSITY = 1 / 420;       // tufts per map unit squared (main map: about the same)
+const FLOWER_DENSITY = 1 / 10000;   // petal flowers per map unit squared
+const FLOWER_PETAL_COLORS_MAP = ["#f2e9d0", "#e58e92", "#f4c85a", "#b9a3e8"];
+
+function drawGroundDetails() {
+    const tuftsDark = new Path2D(), tuftsLight = new Path2D();
+    const area = view.w * view.h;
+    const tuftCount = Math.round(area * TUFT_DENSITY);
+    for (let i = 0; i < tuftCount; i++) {
+        const x = view.x + 8 + pseudoRandom(i * 1.9 + 11) * (view.w - 16);
+        const y = view.y + 8 + pseudoRandom(i * 3.3 + 5) * (view.h - 16);
+        const p = i % 3 === 0 ? tuftsDark : tuftsLight;
+        p.moveTo(x, y); p.lineTo(x - 2, y - 5);
+        p.moveTo(x, y); p.lineTo(x + 1, y - 6);
+        p.moveTo(x, y); p.lineTo(x + 3, y - 4);
+        if (i % 3 === 1) {             // every third tuft is a taller, fuller clump
+            p.moveTo(x, y); p.lineTo(x - 4, y - 9);
+            p.moveTo(x, y); p.lineTo(x + 2, y - 10);
+            p.moveTo(x, y); p.lineTo(x + 5, y - 7);
+        }
+    }
+
+    const petalPaths = FLOWER_PETAL_COLORS_MAP.map(function () { return new Path2D(); });
+    const centers = new Path2D();
+    const flowerCount = Math.round(area * FLOWER_DENSITY);
+    for (let i = 0; i < flowerCount; i++) {
+        const x = view.x + 14 + pseudoRandom(i * 2.7 + 41) * (view.w - 28);
+        const y = view.y + 14 + pseudoRandom(i * 4.9 + 17) * (view.h - 28);
+        const petals = petalPaths[i % FLOWER_PETAL_COLORS_MAP.length];
+        for (let a = 0; a < 5; a++) {
+            const ang = a * Math.PI * 2 / 5;
+            const px = x + Math.cos(ang) * 4, py = y + Math.sin(ang) * 4;
+            petals.moveTo(px + 2.3, py);
+            petals.arc(px, py, 2.3, 0, Math.PI * 2);
+        }
+        centers.moveTo(x + 2.2, y);
+        centers.arc(x, y, 2.2, 0, Math.PI * 2);
+    }
+
+    ctx.save();
+    ctx.lineWidth = 1.2;
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "#68985f"; ctx.stroke(tuftsDark);
+    ctx.strokeStyle = "#bcd69d"; ctx.stroke(tuftsLight);
+    for (let i = 0; i < petalPaths.length; i++) {
+        ctx.fillStyle = FLOWER_PETAL_COLORS_MAP[i];
+        ctx.fill(petalPaths[i]);
+    }
+    ctx.fillStyle = "#e9b23a";
+    ctx.fill(centers);
+    ctx.restore();
+}
+
+// ---------- Round trees (same tree as the main map) ----------
+const ROUND_TREE_COLORS = [
+    ["#3f7a46", "#5f9a58", "#356b3e", "#74ab66"],
+    ["#3b7340", "#58934f", "#306338", "#6ea35f"],
+    ["#437f49", "#64a05b", "#3a7141", "#7bb06b"]
+];
+
+// Drawn around (0, 0) = the base of the trunk on the ground
+function drawRoundTree(seed) {
+    const c = ROUND_TREE_COLORS[Math.floor((seed || 0) * 3) % 3];
+    ctx.save();
+    ctx.translate(0, -22);
+    ctx.scale(1.3, 1.3);
+
+    ctx.fillStyle = "rgba(47, 74, 44, 0.19)";                       // soft ground shadow
+    ctx.beginPath(); ctx.ellipse(6, 16, 22, 11, 0, 0, Math.PI * 2); ctx.fill();
+
+    ctx.fillStyle = "#78593c";                                      // trunk
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(-4, -2, 8, 24, 3); else ctx.rect(-4, -2, 8, 24);
+    ctx.fill();
+
+    const blobs = [[0, -8, 18, c[0]], [-9, -13, 11, c[1]], [9, -3, 12, c[2]], [2, -17, 9, c[3]]];
+    for (const b of blobs) {                                        // canopy
+        ctx.fillStyle = b[3];
+        ctx.beginPath(); ctx.arc(b[0], b[1], b[2], 0, Math.PI * 2); ctx.fill();
+    }
+
+    ctx.fillStyle = "rgba(255, 255, 255, 0.13)";                    // highlight
+    ctx.beginPath(); ctx.arc(-6, -16, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+}
+
+// ---------- Where the trees stand ----------
+// Only a FEW trees, and only in EMPTY places: far from every path, far from every animal badge and name,
+// and far from each other. They are picked once from a scatter of candidate spots (the same every time).
+const TREE_MAX = 12;               // at most this many trees
+const TREE_MIN_GAP = 190;          // trees keep at least this much room between them (map units)
+const TREE_FROM_PATH = 100;        // distance from the centre line of any path
+const TREE_FROM_ANIMAL = 125;      // distance from every animal badge (room for its name too)
+const TREE_FROM_EDGE = 70;         // distance from the edge of the map view
+let treeSpots = null;
+
+function distanceToPaths(px, py) {
+    let best = Infinity;
+    for (const s of wayPart.segments) {
+        const rx = px - s.ax, ry = py - s.ay;
+        const along = Math.max(0, Math.min(s.length, rx * s.dx + ry * s.dy));
+        best = Math.min(best, Math.hypot(rx - s.dx * along, ry - s.dy * along));
+    }
+    return best;
+}
+
+function pickTreeSpots() {
+    const spots = [];
+    const tries = 1400;
+    for (let i = 0; i < tries && spots.length < TREE_MAX; i++) {
+        const x = view.x + TREE_FROM_EDGE + pseudoRandom(i * 5.17 + 3) * (view.w - 2 * TREE_FROM_EDGE);
+        const y = view.y + TREE_FROM_EDGE + 40 + pseudoRandom(i * 7.31 + 9) * (view.h - 2 * TREE_FROM_EDGE - 40);
+
+        if (distanceToPaths(x, y) < TREE_FROM_PATH) continue;
+
+        let ok = true;
+        for (const a of animalSpots) {
+            // names of the "right" column stand to the right of their badges: keep that strip free too
+            const nameStrip = a.tidy === "right" && x > a.point.x - 40 && x < a.point.x + 300 && Math.abs(y - a.point.y) < 70;
+            if (nameStrip || Math.hypot(x - a.point.x, y - a.point.y) < TREE_FROM_ANIMAL) { ok = false; break; }
+        }
+        if (!ok) continue;
+
+        for (const t of spots) {
+            if (Math.hypot(x - t.x, y - t.y) < TREE_MIN_GAP) { ok = false; break; }
+        }
+        if (ok) spots.push({ x: x, y: y, size: 0.95 + 0.3 * pseudoRandom(i * 2.3 + 1), seed: pseudoRandom(i * 1.3 + 7) });
+    }
+    spots.sort(function (a, b) { return a.y - b.y; });      // lower trees are drawn later (in front)
+    return spots;
+}
+
+function drawTrees() {
+    if (!treeSpots) treeSpots = pickTreeSpots();
+    for (const t of treeSpots) {
+        ctx.save();
+        ctx.translate(t.x, t.y);
+        ctx.scale(t.size, t.size);
+        drawRoundTree(t.seed);
+        ctx.restore();
+    }
+}
+
 function buildLayers() {
     baseLayer = makeLayer(function () {
         drawGrass();
+        drawGroundDetails();           // grass tufts and petal flowers (the paths cover them)
         drawPaths();                   // shadows + tiled walkways
+        drawTrees();                   // a few trees in the empty places
     });
 }
 
