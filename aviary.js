@@ -2004,24 +2004,37 @@ function drawCageMarker() {
     // (worked out once per screen size, not every frame)
     const key = viewMatrix.join(",") + "|" + board.w + "|" + board.h + "|" + S.toFixed(2);
     if (!drawCageMarker.cache || drawCageMarker.cache.key !== key) {
-        const gap = 38 * S;
-        const px0 = [], offsets = [[-dy, dx, 1], [dy, -dx, 1], [dx, dy, 0.9], [-dx, -dy, 0.9]];
+        // The sign stands ON the path, at its very END: just past the last point of the walk, in the walking
+        // direction, so the plank never lies across the path. The walking direction comes first; the old
+        // "beside the walk" spots stay only as a fallback if the end is too close to the edge of the screen.
+        const spots = [];
+        for (const f of [20, 30, 42]) spots.push([dx, dy, f, 0]);                       // straight on, past the end
+        for (const f of [38]) {
+            spots.push([-dy, dx, f, 2], [dy, -dx, f, 2], [-dx, -dy, f * 0.9, 3]);       // fallbacks: beside / behind
+        }
         let best = null;
-        for (const o of offsets) {
+        for (const o of spots) {
             for (const sd of [1, -1]) {
-                const px = c.x + o[0] * gap * o[2], py = c.y + o[1] * gap * o[2];
+                const px = c.x + o[0] * o[2] * S, py = c.y + o[1] * o[2] * S;
                 const topY = py + 16 * S - postH;
                 const rx = sd === 1 ? px : px - bw, ry = topY, rw = bw, rh = bh;
-                let score = 0;
+                let score = o[3] * 400;                                                  // prefer "past the end"
                 if (rx < board.x + 8 || rx + rw > board.x + board.w - 8 || ry < board.y + 8 || py + 20 * S > board.y + board.h - 8) score += 5000;
                 if (c.x > rx - 14 && c.x < rx + rw + 14 && c.y > ry - 14 && c.y < ry + rh + 14) score += 800;     // would hide the end of the walk
                 let hits = 0, total = 0;
-                for (let i = 0; i <= 8; i++) for (let j = 0; j <= 2; j++) {
-                    const m = screenToMap(rx + rw * i / 8, ry + rh * j / 2);
+                // the plank
+                for (let i = 0; i <= 12; i++) for (let j = 0; j <= 3; j++) {
+                    const m = screenToMap(rx + rw * i / 12, ry + rh * j / 3);
                     total++;
                     if (pointOnBridge(m.x, m.y) || pointOnWay(0, m.x, m.y) || pointOnWay(1, m.x, m.y)) hits++;
                 }
-                score += 300 * hits / total;
+                // the post (from the plank down to the ground)
+                for (let k = 0; k <= 6; k++) {
+                    const m = screenToMap(px, topY + (postH * k / 6));
+                    total++;
+                    if (pointOnBridge(m.x, m.y) || pointOnWay(0, m.x, m.y) || pointOnWay(1, m.x, m.y)) hits++;
+                }
+                score += 3000 * hits / total;                                            // covering the path is the worst thing
                 if (!best || score < best.score) best = { score: score, px: px, py: py, side: sd };
             }
         }
