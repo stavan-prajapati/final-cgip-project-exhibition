@@ -1156,6 +1156,188 @@ function drawFrame() {
     ctx.restore();
 }
 
+// ======================================================================
+// ANIMAL PLACEHOLDERS  (same idea as birdSpots in aviary.js)
+// ======================================================================
+// Every animal gets the SAME placeholder: a round badge + the animal's name.
+//
+// HOW TO PLACE AN ANIMAL
+//   1. Open zoo.html?place   (the placement helper, see the bottom of this block)
+//   2. Click the map where the animal should stand. The panel shows the exact line to paste.
+//   3. Paste that line into animalSpots below and change ANIMAL-ID to a real id from animalInfo.
+//   4. Save and refresh the page. Open zoo.html (without ?place) to see the final map.
+//
+//   id    = the animal's id (must exist in animalInfo below)
+//   point = canvaPoint(x, y)  ->  the same SKETCH pixels the walkways use.
+//           Pick a spot on the grass just NEXT to a path (about 35-45 px from the path's center line).
+const animalInfo = {
+    "bengal-tiger":            { name: "Bengal Tiger",              icon: "🐅" },
+    "white-tiger":             { name: "White Tiger",               icon: "🐯" },
+    "leopard":                 { name: "Leopard",                   icon: "🐆" },
+    "sloth-bear":              { name: "Sloth Bear",                icon: "🐻" },
+    "hippopotamus":            { name: "Hippopotamus",              icon: "🦛" },
+    "indian-wolf":             { name: "Indian Wolf",               icon: "🐺" },
+    "jackal":                  { name: "Jackal",                    icon: "🐺" },
+    "wild-dog":                { name: "Wild Dog (Dhole)",          icon: "🐕" },
+    "striped-hyena":           { name: "Striped Hyena",             icon: "🐾" },
+    "nilgai":                  { name: "Nilgai",                    icon: "🫎" },
+    "indian-crested-porcupine":{ name: "Indian Crested Porcupine",  icon: "🦔" },
+    "southern-pig-tailed-macaque": { name: "Southern Pig-tailed Macaque", icon: "🐒" },
+    "red-eared-slider":        { name: "Red-eared Slider",          icon: "🐢" }
+};
+
+const animalSpots = [
+    { id: "nilgai", point: canvaPoint(488, 402) },
+    { id: "southern-pig-tailed-macaque", point: canvaPoint(498, 238) },
+    { id: "red-eared-slider", point: canvaPoint(600, 238) },
+    { id: "hippopotamus", point: canvaPoint(710, 238) },
+    { id: "indian-crested-porcupine", point: canvaPoint(801, 238) },
+    { id: "bengal-tiger", point: canvaPoint(890, 334) },
+    { id: "white-tiger", point: canvaPoint(890, 469) },
+    { id: "sloth-bear", point: canvaPoint(812, 541) },
+    { id: "leopard", point: canvaPoint(812, 626) },
+    { id: "indian-wolf", point: canvaPoint(1040, 309) },
+    { id: "wild-dog", point: canvaPoint(1040, 380) },
+    { id: "jackal", point: canvaPoint(1040, 451) },
+    { id: "striped-hyena", point: canvaPoint(1040, 522) },
+];
+
+// Make sure the view box holds every animal marker (plus room for its badge and name)
+(function () {
+    const room = 70;
+    let minX = view.x, maxX = view.x + view.w, minY = view.y, maxY = view.y + view.h;
+    for (const spot of animalSpots) {
+        minX = Math.min(minX, spot.point.x - room); maxX = Math.max(maxX, spot.point.x + room);
+        minY = Math.min(minY, spot.point.y - room); maxY = Math.max(maxY, spot.point.y + room);
+    }
+    view.x = minX; view.y = minY; view.w = maxX - minX; view.h = maxY - minY;
+})();
+
+// map point -> screen pixel (uses the view matrix, so it also works when the map is turned on a phone)
+function mapToScreen(p) {
+    const m = viewMatrix;
+    return {
+        x: (m[0] * p.x + m[2] * p.y + m[4]) / pixelRatioNow,
+        y: (m[1] * p.x + m[3] * p.y + m[5]) / pixelRatioNow
+    };
+}
+
+// Placement helper clicks (filled only when the page is opened as zoo.html?place)
+const placeClicks = [];
+
+// One marker: badge (wooden ring, cream face, emoji) and a name tag under it. Drawn in SCREEN pixels,
+// so it stays upright and the same size on every screen.
+function drawSpotMarker(sx, sy, icon, label, ringColor, pulse) {
+    const R = Math.round(Math.max(13, Math.min(18, Math.min(board.w, board.h) * 0.032)));
+
+    ctx.strokeStyle = "rgba(63, 143, 74, " + ((1 - pulse) * 0.55) + ")";      // soft pulsing ring
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(sx, sy, R + 3 + pulse * 12, 0, Math.PI * 2); ctx.stroke();
+
+    ctx.fillStyle = "rgba(0, 0, 0, 0.28)";
+    ctx.beginPath(); ctx.arc(sx, sy + 2, R + 2, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = ringColor;
+    ctx.beginPath(); ctx.arc(sx, sy, R + 2, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#fff4d6";
+    ctx.beginPath(); ctx.arc(sx, sy, R - 1, 0, Math.PI * 2); ctx.fill();
+    ctx.font = Math.round(R * 1.06) + "px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#000";
+    ctx.fillText(icon, sx, sy + 1);
+
+    // name tag
+    const fontPx = Math.round(Math.max(10, Math.min(13, R * 0.75)));
+    ctx.font = "800 " + fontPx + "px 'Trebuchet MS', 'Segoe UI', sans-serif";
+    const w = Math.ceil(ctx.measureText(label).width) + 14, h = fontPx + 9;
+    const lx = sx - w / 2, ly = sy + R + 6;
+    ctx.fillStyle = "#6f4524";
+    ctx.beginPath();
+    ctx.moveTo(lx + 7, ly);
+    ctx.arcTo(lx + w, ly, lx + w, ly + h, 7);
+    ctx.arcTo(lx + w, ly + h, lx, ly + h, 7);
+    ctx.arcTo(lx, ly + h, lx, ly, 7);
+    ctx.arcTo(lx, ly, lx + w, ly, 7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "#4e3119";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.fillStyle = "#fff4d6";
+    ctx.fillText(label, sx, ly + h / 2 + 0.5);
+}
+
+function drawAnimalSpots() {
+    const pulse = ((performance.now() / 1000) * 0.8) % 1;
+    ctx.save();
+    ctx.setTransform(pixelRatioNow, 0, 0, pixelRatioNow, 0, 0);
+
+    for (const spot of animalSpots) {
+        const info = animalInfo[spot.id] || { name: spot.id, icon: "🐾" };
+        const s = mapToScreen(spot.point);
+        drawSpotMarker(s.x, s.y, info.icon, info.name, "#6f4524", pulse);
+    }
+    // the markers made by the placement helper (blue ring, numbered)
+    placeClicks.forEach(function (c, i) {
+        const s = mapToScreen(canvaPoint(c.sx, c.sy));
+        drawSpotMarker(s.x, s.y, "📍", "New spot " + (i + 1), "#168bff", pulse);
+    });
+
+    ctx.restore();
+}
+
+// ---------- Placement helper: open zoo.html?place ----------
+// Click the map where an animal should stand. A numbered "New spot" marker appears there, and a panel lists
+// the exact lines to paste into animalSpots (click the panel to copy them all). Nothing is saved by itself.
+if (new URLSearchParams(location.search).has("place")) {
+    const panel = document.createElement("div");
+    panel.style.cssText =
+        "position:fixed; left:14px; bottom:calc(14px + env(safe-area-inset-bottom, 0px)); z-index:6;" +
+        "max-width:min(460px, calc(100vw - 28px)); max-height:45vh; overflow:auto; padding:12px 14px;" +
+        "color:#fff; font:600 13px/1.5 'Trebuchet MS', 'Segoe UI', sans-serif;" +
+        "background:rgba(38,50,56,0.94); border-radius:14px; box-shadow:0 8px 22px rgba(0,0,0,0.35);";
+    document.body.appendChild(panel);
+
+    function lineFor(c) { return '{ id: "ANIMAL-ID", point: canvaPoint(' + c.sx + ', ' + c.sy + ') },'; }
+
+    function renderPanel(copied) {
+        if (!placeClicks.length) {
+            panel.innerHTML = "<b>Placement helper</b><br>Click the map where an animal should stand.";
+            return;
+        }
+        const lines = placeClicks.map(function (c, i) { return "// " + (i + 1) + "\n" + lineFor(c); });
+        panel.innerHTML =
+            "<b>Paste these into animalSpots</b> " + (copied ? "<span style='color:#8fe09a'>(copied!)</span>" : "(tap the code to copy)") + "<br>" +
+            "<pre id='placeCode' style='margin:6px 0; color:#ffd54f; white-space:pre-wrap; cursor:pointer'></pre>" +
+            "Change ANIMAL-ID to an id from animalInfo.<br>" +
+            "<button id='placeUndo' style='margin:8px 6px 0 0; padding:5px 10px; border:0; border-radius:8px; font-weight:700; cursor:pointer'>Undo last</button>" +
+            "<button id='placeClear' style='margin-top:8px; padding:5px 10px; border:0; border-radius:8px; font-weight:700; cursor:pointer'>Clear all</button>";
+        const code = panel.querySelector("#placeCode");
+        code.textContent = lines.join("\n");
+        code.onclick = function () {
+            if (navigator.clipboard) navigator.clipboard.writeText(placeClicks.map(lineFor).join("\n")).then(function () { renderPanel(true); }).catch(function () {});
+        };
+        panel.querySelector("#placeUndo").onclick = function () { placeClicks.pop(); renderPanel(); };
+        panel.querySelector("#placeClear").onclick = function () { placeClicks.length = 0; renderPanel(); };
+    }
+    renderPanel();
+
+    canvas.addEventListener("click", function (e) {
+        // screen -> map: undo the view matrix (it also covers the quarter turn on phones)
+        const rect = canvas.getBoundingClientRect();
+        const X = (e.clientX - rect.left) * (canvas.width / rect.width);
+        const Y = (e.clientY - rect.top) * (canvas.height / rect.height);
+        const [a, b, c, d, tx, ty] = viewMatrix;
+        const det = a * d - b * c;
+        const mx = (d * (X - tx) - c * (Y - ty)) / det;
+        const my = (-b * (X - tx) + a * (Y - ty)) / det;
+
+        // map -> sketch pixels (the numbers canvaPoint() takes)
+        placeClicks.push({ sx: Math.round(mx / CANVA_SCALE + CANVA_ORIGIN.x), sy: Math.round(my / CANVA_SCALE + CANVA_ORIGIN.y) });
+        renderPanel();
+    });
+}
+
 // Draw complete map (order matters: later drawings appear on top)
 function drawMap() {
     if (!baseLayer) return;
@@ -1170,7 +1352,7 @@ function drawMap() {
 
     drawLayer(baseLayer);                            // 1. grass, tiled walkways
     drawDottedRoute(guideRoutes);                    // 2. the blue dotted guide line along every path
-    // (animal markers will be drawn here later, between the dotted line and the visitor)
+    drawAnimalSpots();                               // 2b. animal placeholder markers (+ the ?place helper markers)
     drawVisitor();                                   // 3. visitor pointer, on top
 
     ctx.setTransform(pixelRatioNow, 0, 0, pixelRatioNow, 0, 0);
