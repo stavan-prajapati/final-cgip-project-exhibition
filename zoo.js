@@ -1298,7 +1298,9 @@ function screenToMap(x, y) {
 const placeClicks = [];
 
 // ---------- Sizes that follow the screen ----------
-function badgeRadius()     { return Math.max(12, Math.min(24, viewScale * 28)); }      // screen pixels (the badge size; the name text size is set separately by labelFontPx)
+const BADGE_SIZE = 1;       // size of the whole round badge: 1 = normal, 1.2 = 20% bigger, 1.4 = 40% bigger
+const ICON_SIZE  = 1.4;     // size of the emoji / paw INSIDE the badge (1.06 was the old size; about 1.5 is the most that fits)
+function badgeRadius()     { return BADGE_SIZE * Math.max(12, Math.min(24, viewScale * 28)); }      // screen pixels (the badge size; the name text size is set separately by labelFontPx)
 function labelFontPx()     { return viewScale < 0.45 ? 9.5 : (viewScale < 0.6 ? 10.5 : (viewScale < 0.8 ? 11 : 12)); }
 function labelFont()       { return "700 " + labelFontPx() + "px 'Trebuchet MS', 'Segoe UI', sans-serif"; }
 function labelLineHeight() { return Math.round(labelFontPx() * 1.17); }
@@ -1622,12 +1624,12 @@ function drawAnimalSpots() {
         ctx.beginPath(); ctx.arc(sx, sy, R + 2, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = "#fff4d6";
         ctx.beginPath(); ctx.arc(sx, sy, R - 1, 0, Math.PI * 2); ctx.fill();
-        ctx.font = Math.round(R * 1.06) + "px sans-serif";
+        ctx.font = Math.round(R * ICON_SIZE) + "px sans-serif";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillStyle = "#000";
         if (it.icon) ctx.fillText(it.icon, sx, sy + 1);
-        else drawPlaceholderPaw(sx, sy, R);              // this device has no picture for the emoji
+        else drawPlaceholderPaw(sx, sy, R * ICON_SIZE / 1.06 * 0.85);              // this device has no picture for the emoji
     }
 
     // 3. names (on top of every badge and line)
