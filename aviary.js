@@ -2307,15 +2307,22 @@ cagePopup.style.display = "none";
 document.body.appendChild(cagePopup);
 
 cagePopup.querySelector("button").addEventListener("click", function () {
-    window.location.href = CAGE_LINK.page;           // yes: open the cage page
+    openPage(CAGE_LINK.page, cagePopup.querySelector("button"));   // yes: open the cage page
 });
 
 let cageNearby = false;
+let cageLeftAt = null;
 
 function updateCagePopup() {
     const reached = Math.hypot(visitor.x - cageMarker.point.x, visitor.y - cageMarker.point.y) <= cageMarker.trigger;
     const cardOpen = typeof isBirdCardOpen === "function" && isBirdCardOpen();
-    const show = reached && !cardOpen;
+    let show = reached && !cardOpen;
+    // keep the popup for 1.5 s after the visitor steps away, so a tap is not lost
+    if (reached) cageLeftAt = null;
+    else if (cageNearby && !cardOpen) {
+        if (cageLeftAt === null) cageLeftAt = performance.now();
+        if (performance.now() - cageLeftAt < 1500) show = true;
+    }
     if (show === cageNearby) return;                 // nothing changed
     cageNearby = show;
     cagePopup.style.display = show ? "flex" : "none";
@@ -2768,3 +2775,42 @@ window.addEventListener("resize", resizeCanvas);
 // Start map
 resizeCanvas();
 requestAnimationFrame(animateRoute);
+
+// ---------- Opening another page: instant feedback + no double taps ----------
+// The button shows "Opening..." right away (the next page can take a moment on slow Wi-Fi), and
+// a second tap is ignored. If the visitor comes back with the Back button, everything is reset.
+let pageOpening = false;
+let pageOpeningButton = null, pageOpeningLabel = "";
+function openPage(url, button) {
+    if (pageOpening) return;
+    pageOpening = true;
+    if (button) {
+        pageOpeningButton = button;
+        pageOpeningLabel = button.textContent;
+        button.textContent = "Opening\u2026";
+        button.style.opacity = "0.75";
+    }
+    window.location.href = url;
+}
+window.addEventListener("pageshow", function (e) {
+    if (!e.persisted) return;                       // page restored from the back/forward cache
+    pageOpening = false;
+    if (pageOpeningButton) { pageOpeningButton.textContent = pageOpeningLabel; pageOpeningButton.style.opacity = ""; }
+});
+
+// ---------- Warm up the next page(s) while the visitor is still on this one ----------
+// The browser quietly downloads them after this page has finished loading, so tapping the
+// button opens the next page almost instantly. Skipped when Data Saver / a 2G connection is on.
+function prefetchPages(urls) {
+    const c = navigator.connection;
+    if (c && (c.saveData || /(^|-)2g$/.test(c.effectiveType || ""))) return;
+    urls.forEach(function (u) {
+        const l = document.createElement("link");
+        l.rel = "prefetch";
+        l.href = u;
+        document.head.appendChild(l);
+    });
+}
+window.addEventListener("load", function () {
+    setTimeout(function () { prefetchPages(["cages.html", "cages.css", "cages.js", "index.html?from=aviary"]); }, 1500);
+});

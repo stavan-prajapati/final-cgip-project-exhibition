@@ -775,6 +775,7 @@ const proximityPopupText = proximityPopup.querySelector("#proximityPopupText");
 const proximityPopupButton = proximityPopup.querySelector("#proximityPopupButton");
 document.body.appendChild(proximityPopup);
 
+let popupLeftAt = null;                   // time when the visitor walked away from a place (for the 1.5 s grace)
 function hideProximityPopup() {
     proximityPopup.style.display = "none";
     popupPlaceId = null;
@@ -784,7 +785,7 @@ proximityPopupButton.addEventListener("click", function () {
     if (!popupPlaceId) return;
     const link = PAGE_LINKS[popupPlaceId];
     if (link) {                              // Aviary / Zoo: open that page
-        window.location.href = link.page;
+        openPage(link.page, proximityPopupButton);
         return;
     }
     if (typeof openPlaceCard !== "function") return;
@@ -2064,10 +2065,18 @@ function checkNearbyPlace() {
     arrivedPlace = findReachedPlace();
 
     if (!arrivedPlace) {
+        // keep the popup for 1.5 s after the visitor steps away, so a tap is not lost
+        // when the joystick drifts a little while the finger goes to the button
+        if (popupPlaceId) {
+            if (popupLeftAt === null) popupLeftAt = performance.now();
+            if (performance.now() - popupLeftAt < 1500) return;
+        }
+        popupLeftAt = null;
         hideProximityPopup();
         popupDismissedFor = null;
         return;
     }
+    popupLeftAt = null;
 
     if (typeof isPlaceCardOpen === "function" && isPlaceCardOpen()) {
         hideProximityPopup();
@@ -2393,3 +2402,42 @@ const splash = document.getElementById("splash");
 if (splash) {
     setTimeout(function () { splash.classList.add("hide"); }, 1700);
 }
+
+// ---------- Opening another page: instant feedback + no double taps ----------
+// The button shows "Opening..." right away (the next page can take a moment on slow Wi-Fi), and
+// a second tap is ignored. If the visitor comes back with the Back button, everything is reset.
+let pageOpening = false;
+let pageOpeningButton = null, pageOpeningLabel = "";
+function openPage(url, button) {
+    if (pageOpening) return;
+    pageOpening = true;
+    if (button) {
+        pageOpeningButton = button;
+        pageOpeningLabel = button.textContent;
+        button.textContent = "Opening\u2026";
+        button.style.opacity = "0.75";
+    }
+    window.location.href = url;
+}
+window.addEventListener("pageshow", function (e) {
+    if (!e.persisted) return;                       // page restored from the back/forward cache
+    pageOpening = false;
+    if (pageOpeningButton) { pageOpeningButton.textContent = pageOpeningLabel; pageOpeningButton.style.opacity = ""; }
+});
+
+// ---------- Warm up the next page(s) while the visitor is still on this one ----------
+// The browser quietly downloads them after this page has finished loading, so tapping the
+// button opens the next page almost instantly. Skipped when Data Saver / a 2G connection is on.
+function prefetchPages(urls) {
+    const c = navigator.connection;
+    if (c && (c.saveData || /(^|-)2g$/.test(c.effectiveType || ""))) return;
+    urls.forEach(function (u) {
+        const l = document.createElement("link");
+        l.rel = "prefetch";
+        l.href = u;
+        document.head.appendChild(l);
+    });
+}
+window.addEventListener("load", function () {
+    setTimeout(function () { prefetchPages(["aviary.html", "style.css", "aviary.css", "data/aviary-data.js", "bird-card.js", "aviary.js", "zoo.html", "zoo.css", "data/zoo-data.js", "animal-card.js", "zoo.js"]); }, 1500);
+});
