@@ -1096,11 +1096,11 @@ function drawRoundTree(seed) {
 // ---------- Where the trees stand ----------
 // Only a FEW trees, and only in EMPTY places: far from every path, far from every animal badge and name,
 // and far from each other. They are picked once from a scatter of candidate spots (the same every time).
-const TREE_MAX = 12;               // at most this many trees
-const TREE_MIN_GAP = 190;          // trees keep at least this much room between them (map units)
-const TREE_FROM_PATH = 100;        // distance from the centre line of any path
-const TREE_FROM_ANIMAL = 125;      // distance from every animal badge (room for its name too)
-const TREE_FROM_EDGE = 70;         // distance from the edge of the map view
+const TREE_MAX = 45;               // at most this many trees (was 12). Raise for a denser forest, lower for fewer.
+const TREE_MIN_GAP = 100;          // trees keep at least this much room between them (map units). Smaller = more crowded.
+const TREE_FROM_PATH = 75;         // distance from the centre line of any path (path is 60 wide, so 75 leaves a clear edge)
+const TREE_FROM_ANIMAL = 110;      // distance from every animal badge (room for its name too)
+const TREE_FROM_EDGE = 45;         // distance from the edge of the map view
 let treeSpots = null;
 
 function distanceToPaths(px, py) {
@@ -1115,7 +1115,7 @@ function distanceToPaths(px, py) {
 
 function pickTreeSpots() {
     const spots = [];
-    const tries = 1400;
+    const tries = 5000;
     for (let i = 0; i < tries && spots.length < TREE_MAX; i++) {
         const x = view.x + TREE_FROM_EDGE + pseudoRandom(i * 5.17 + 3) * (view.w - 2 * TREE_FROM_EDGE);
         const y = view.y + TREE_FROM_EDGE + 40 + pseudoRandom(i * 7.31 + 9) * (view.h - 2 * TREE_FROM_EDGE - 40);
@@ -1326,7 +1326,7 @@ const animalInfo = {
     "sloth-bear":              { name: "Sloth Bear",                icon: "🐻" },
     "hippopotamus":            { name: "Hippopotamus",              icon: "🦛" },
     "indian-wolf":             { name: "Indian Wolf",               icon: "🐺" },
-    "jackal":                  { name: "Jackal",                    icon: "🐺" },
+    "jackal":                  { name: "Jackal",                    icon: "🦊" },
     "wild-dog":                { name: "Wild Dog (Dhole)",          icon: "🐕" },
     "striped-hyena":           { name: "Striped Hyena",             icon: "🐾" },
     "nilgai":                  { name: "Nilgai",                    icon: "🫎" },
@@ -1894,6 +1894,65 @@ if (new URLSearchParams(location.search).has("place")) {
     });
 }
 
+// ---------- Butterflies (same as the main map) ----------
+// Each one flies around a centre point (cx, cy) in a lazy figure-eight and flaps its wings.
+// The centres are given as a share of the map (fx, fy: 0 = left/top edge, 1 = right/bottom edge),
+// so they spread over the whole zoo whatever its size. ax / ay = how far it wanders (map units).
+const butterflyDefs = [
+    { fx: 0.12, fy: 0.12, ax: 80, ay: 45, speed: 0.55, color: "#ffb300" },
+    { fx: 0.40, fy: 0.08, ax: 70, ay: 40, speed: 0.65, color: "#ff7ab6" },
+    { fx: 0.72, fy: 0.14, ax: 85, ay: 45, speed: 0.50, color: "#ffffff" },
+    { fx: 0.90, fy: 0.30, ax: 60, ay: 50, speed: 0.60, color: "#ffd54f" },
+    { fx: 0.20, fy: 0.38, ax: 75, ay: 45, speed: 0.70, color: "#a58fd6" },
+    { fx: 0.55, fy: 0.45, ax: 90, ay: 50, speed: 0.58, color: "#8fc2ee" },
+    { fx: 0.85, fy: 0.62, ax: 70, ay: 45, speed: 0.52, color: "#ff9f43" },
+    { fx: 0.10, fy: 0.68, ax: 65, ay: 45, speed: 0.62, color: "#fff176" },
+    { fx: 0.38, fy: 0.80, ax: 85, ay: 40, speed: 0.56, color: "#ff7ab6" },
+    { fx: 0.68, fy: 0.88, ax: 75, ay: 40, speed: 0.66, color: "#a58fd6" },
+    { fx: 0.92, fy: 0.90, ax: 55, ay: 35, speed: 0.60, color: "#ffffff" },
+    { fx: 0.50, fy: 0.62, ax: 60, ay: 40, speed: 0.54, color: "#ffb300" }
+];
+const butterflies = butterflyDefs.map(function (b) {
+    return { cx: view.x + b.fx * view.w, cy: view.y + b.fy * view.h, ax: b.ax, ay: b.ay, speed: b.speed, color: b.color };
+});
+
+function drawButterflies() {
+    const t = performance.now() / 1000;
+
+    for (let i = 0; i < butterflies.length; i++) {
+        const b = butterflies[i];
+        const phase = i * 1.7;
+
+        // position (a lazy figure-eight) and the direction it is flying
+        const x = b.cx + b.ax * Math.sin(t * b.speed + phase);
+        const y = b.cy + b.ay * Math.sin(t * b.speed * 2 + phase);
+        const vx = b.ax * b.speed * Math.cos(t * b.speed + phase);
+        const vy = b.ay * b.speed * 2 * Math.cos(t * b.speed * 2 + phase);
+
+        const flap = 0.25 + 0.75 * Math.abs(Math.sin(t * 13 + phase));   // wings open and close
+
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(Math.atan2(vy, vx) + Math.PI / 2);      // face the flying direction
+
+        ctx.fillStyle = b.color;
+        ctx.strokeStyle = "rgba(60, 40, 20, 0.6)";
+        ctx.lineWidth = 0.8;
+        for (const side of [-1, 1]) {
+            ctx.beginPath();
+            ctx.ellipse(side * 5 * flap, -3, 5 * flap, 6.5, side * 0.4, 0, Math.PI * 2);
+            ctx.fill(); ctx.stroke();
+            ctx.beginPath();
+            ctx.ellipse(side * 4 * flap, 4, 3.5 * flap, 4.5, side * -0.3, 0, Math.PI * 2);
+            ctx.fill(); ctx.stroke();
+        }
+        ctx.fillStyle = "#3b2a14";
+        ctx.beginPath(); ctx.ellipse(0, 0, 1.4, 6, 0, 0, Math.PI * 2); ctx.fill();   // body
+
+        ctx.restore();
+    }
+}
+
 // Draw complete map (order matters: later drawings appear on top)
 function drawMap() {
     if (!baseLayer) return;
@@ -1908,6 +1967,7 @@ function drawMap() {
 
     drawLayer(baseLayer);                            // 1. grass, tiled walkways
     drawDottedRoute(guideRoutes);                    // 2. the blue dotted guide line along every path
+    drawButterflies();                               // 2a. butterflies fly over the trees and paths (under the badges)
     drawAnimalSpots();                               // 2b. animal placeholder markers (+ the ?place helper markers)
     drawVisitor();                                   // 3. visitor pointer, on top
 
