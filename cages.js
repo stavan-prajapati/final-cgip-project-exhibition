@@ -154,7 +154,7 @@ const CANVA_ORIGIN = { x: 380, y: 200 };   // this sketch point becomes map (0, 
 // numbers in canvaPoint(x, y). 1 = no stretch, 1.35 = 35% longer. (Make it bigger for even more room.)
 const STRETCH_FROM = 745;
 const STRETCH_TO = 1080;
-const STRETCH = 1.35;
+const STRETCH = 2.05;
 
 function stretchX(x) {
     if (x <= STRETCH_FROM) return x;
@@ -867,13 +867,18 @@ let dashOffset = 0;
 // whole screen. It is drawn on the screen (not on the map), so the blades always stand
 // upright, even when the map is turned.
 const GRASS_TILE_SIZE = 600;       // size of the repeating grass picture (screen pixels)
-const GRASS_TUFTS = 560;
-const GRASS_FLOWERS = 18;
+const GRASS_TUFTS = 760;           // grass tufts in one picture (more = thicker grass)
+const FLOWER_DENSITY = 0.14;       // petal flowers per 1000 screen pixels squared (0 = none, 0.2 = a flower meadow)
 const FLOWER_PETAL_COLORS = ["#f2e9d0", "#e58e92", "#f4c85a", "#b9a3e8"];
 let grassPattern = null;
+let groundFlowers = null;          // { petals: [one Path2D per colour], centers: Path2D }
+
+// grass and flowers get a little smaller on a small phone screen, and a little bigger on a big one
+function grassScale() { return Math.max(0.75, Math.min(1.15, viewScale)); }
 
 function buildGrassPattern(pixelRatio) {
     const size = GRASS_TILE_SIZE;
+    const k = grassScale();
     const tile = document.createElement("canvas");
     tile.width = Math.round(size * pixelRatio);
     tile.height = Math.round(size * pixelRatio);
@@ -883,39 +888,49 @@ function buildGrassPattern(pixelRatio) {
     g.fillStyle = GRASS_COLOR;
     g.fillRect(0, 0, size, size);
 
-    g.lineWidth = 0.9;
-    g.lineCap = "round";
+    // tufts: 3 blades each, every third tuft is a taller, fuller clump (same shapes as main-map.js)
+    const dark = new Path2D(), light = new Path2D();
     for (let i = 0; i < GRASS_TUFTS; i++) {
-        const x = 8 + pseudoRandom(i * 1.9 + 11) * (size - 16);
-        const y = 10 + pseudoRandom(i * 3.3 + 5) * (size - 20);
-        g.strokeStyle = (i % 3 === 0) ? "#68985f" : "#bcd69d";
-        g.beginPath();
-        g.moveTo(x, y); g.lineTo(x - 1, y - 2.5);
-        g.moveTo(x, y); g.lineTo(x + 0.5, y - 3);
-        g.moveTo(x, y); g.lineTo(x + 1.5, y - 2);
+        const x = 12 + pseudoRandom(i * 1.9 + 11) * (size - 24);
+        const y = 14 + pseudoRandom(i * 3.3 + 5) * (size - 28);
+        const p = (i % 3 === 0) ? dark : light;
+        p.moveTo(x, y); p.lineTo(x - 2 * k, y - 5 * k);
+        p.moveTo(x, y); p.lineTo(x + 1 * k, y - 6 * k);
+        p.moveTo(x, y); p.lineTo(x + 3 * k, y - 4 * k);
         if (i % 3 === 1) {
-            g.moveTo(x, y); g.lineTo(x - 2, y - 4.5);
-            g.moveTo(x, y); g.lineTo(x + 1, y - 5);
-            g.moveTo(x, y); g.lineTo(x + 2.5, y - 3.5);
+            p.moveTo(x, y); p.lineTo(x - 4 * k, y - 9 * k);
+            p.moveTo(x, y); p.lineTo(x + 2 * k, y - 10 * k);
+            p.moveTo(x, y); p.lineTo(x + 5 * k, y - 7 * k);
         }
-        g.stroke();
     }
-
-    for (let i = 0; i < GRASS_FLOWERS; i++) {
-        const x = 10 + pseudoRandom(i * 2.7 + 41) * (size - 20);
-        const y = 10 + pseudoRandom(i * 4.9 + 17) * (size - 20);
-        g.fillStyle = FLOWER_PETAL_COLORS[i % FLOWER_PETAL_COLORS.length];
-        for (let a = 0; a < 5; a++) {
-            const ang = a * Math.PI * 2 / 5;
-            g.beginPath();
-            g.arc(x + Math.cos(ang) * 2, y + Math.sin(ang) * 2, 1.2, 0, Math.PI * 2);
-            g.fill();
-        }
-        g.fillStyle = "#e9b23a";
-        g.beginPath(); g.arc(x, y, 1.1, 0, Math.PI * 2); g.fill();
-    }
+    g.lineWidth = 1.2;
+    g.lineCap = "round";
+    g.strokeStyle = "#68985f"; g.stroke(dark);
+    g.strokeStyle = "#bcd69d"; g.stroke(light);
 
     return ctx.createPattern(tile, "repeat");
+}
+
+// Petal flowers: five round petals round a yellow centre (same as main-map.js), scattered over the whole screen
+function buildGroundFlowers(screenW, screenH) {
+    const k = grassScale();
+    const count = Math.round(screenW * screenH / 1000 * FLOWER_DENSITY);
+    const petals = FLOWER_PETAL_COLORS.map(function () { return new Path2D(); });
+    const centers = new Path2D();
+    for (let i = 0; i < count; i++) {
+        const x = 14 + pseudoRandom(i * 2.7 + 41) * (screenW - 28);
+        const y = 14 + pseudoRandom(i * 4.9 + 17) * (screenH - 28);
+        const path = petals[i % petals.length];
+        for (let a = 0; a < 5; a++) {
+            const ang = a * Math.PI * 2 / 5;
+            const px = x + Math.cos(ang) * 4 * k, py = y + Math.sin(ang) * 4 * k;
+            path.moveTo(px + 2.3 * k, py);
+            path.arc(px, py, 2.3 * k, 0, Math.PI * 2);
+        }
+        centers.moveTo(x + 2.2 * k, y);
+        centers.arc(x, y, 2.2 * k, 0, Math.PI * 2);
+    }
+    return { petals: petals, centers: centers };
 }
 
 function drawGrass() {
@@ -923,6 +938,17 @@ function drawGrass() {
     ctx.setTransform(1, 0, 0, 1, 0, 0);          // screen pixels, ignore the map transform
     ctx.fillStyle = grassPattern || GRASS_COLOR;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // petal flowers on top of the grass (in CSS pixels, so the screen-size numbers of buildGroundFlowers fit)
+    if (groundFlowers) {
+        ctx.setTransform(pixelRatioNow, 0, 0, pixelRatioNow, 0, 0);
+        for (let i = 0; i < groundFlowers.petals.length; i++) {
+            ctx.fillStyle = FLOWER_PETAL_COLORS[i];
+            ctx.fill(groundFlowers.petals[i]);
+        }
+        ctx.fillStyle = "#e9b23a";
+        ctx.fill(groundFlowers.centers);
+    }
     ctx.restore();
 }
 
@@ -1001,6 +1027,122 @@ function drawDottedRoute(routes) {
     ctx.restore();
 }
 
+// ======================================================================
+// POND (in the middle of the loop) + a FEW ROCKS
+// ======================================================================
+// A pond lies on the grass in the middle of each curved walk (dome 1 and dome 2), under the
+// water birds. It is drawn once into the base layer (under the paths and the bird markers).
+//
+// TO MOVE / RESIZE A POND: change "center" and "rx / ry". They are SKETCH pixels, the same numbers as
+//   canvaPoint(x, y), so the pond is stretched together with the map.
+// TO CHANGE THE ROCKS: every rock has an "angle" (degrees round the pond: 0 = east, 90 = south, 180 = west,
+//   270 = north), "out" (1 = on the water's edge, bigger = further out on the bank) and a "size".
+//   Delete a line = one rock less. Delete a whole pond block = no pond there.
+const PONDS = [];     // no pond on this map (the middle of the loop is a small garden of trees instead)
+
+const POND_WATER_EDGE = "#2f86b5";      // deeper water at the edge
+const POND_WATER_MID  = "#58b4d8";      // lighter water in the middle
+const POND_SHORE      = "#d9c99a";      // sandy edge
+const POND_BANK       = "#6f9f5c";      // darker, wet grass around the pond
+const POND_WOBBLE = 0.09;               // how uneven the shore is (0 = perfect oval)
+
+// The outline of a pond (k = 1 the water, bigger = the shore / the bank), in MAP units
+function pondOutline(pond, k) {
+    const pts = [], n = 18;
+    for (let i = 0; i < n; i++) {
+        const a = i / n * Math.PI * 2;
+        const w = 1 + POND_WOBBLE * Math.sin(3 * a + pond.seed) + POND_WOBBLE * 0.55 * Math.sin(5 * a + pond.seed * 2);
+        pts.push(canvaPoint(pond.center[0] + Math.cos(a) * pond.rx * w * k,
+                            pond.center[1] + Math.sin(a) * pond.ry * w * k));
+    }
+    return pts;
+}
+
+// Trace a smooth closed curve through the points
+function traceSmoothClosed(pts) {
+    const n = pts.length;
+    const mid = function (a, b) { return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; };
+    const start = mid(pts[n - 1], pts[0]);
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y);
+    for (let i = 0; i < n; i++) {
+        const m = mid(pts[i], pts[(i + 1) % n]);
+        ctx.quadraticCurveTo(pts[i].x, pts[i].y, m.x, m.y);
+    }
+    ctx.closePath();
+}
+
+function drawRock(x, y, size, seed) {
+    const n = 8, pts = [];
+    for (let i = 0; i < n; i++) {
+        const a = i / n * Math.PI * 2;
+        const r = size * (0.78 + 0.35 * pseudoRandom(seed * 7 + i));
+        pts.push({ x: x + Math.cos(a) * r * 1.2, y: y + Math.sin(a) * r * 0.9 });
+    }
+    // shadow on the ground
+    ctx.fillStyle = "rgba(0, 0, 0, 0.22)";
+    ctx.beginPath(); ctx.ellipse(x + size * 0.15, y + size * 0.75, size * 1.25, size * 0.4, 0, 0, Math.PI * 2); ctx.fill();
+    // the stone
+    traceSmoothClosed(pts);
+    const g = ctx.createLinearGradient(x - size, y - size, x + size, y + size);
+    g.addColorStop(0, "#b9bcb5"); g.addColorStop(1, "#7d807a");
+    ctx.fillStyle = g; ctx.fill();
+    ctx.strokeStyle = "#5d605b"; ctx.lineWidth = 1.6; ctx.stroke();
+    // a small light spot on top
+    ctx.fillStyle = "rgba(255, 255, 255, 0.35)";
+    ctx.beginPath(); ctx.ellipse(x - size * 0.3, y - size * 0.3, size * 0.4, size * 0.22, -0.4, 0, Math.PI * 2); ctx.fill();
+}
+
+function drawPonds() {
+    ctx.save();
+    for (const pond of PONDS) {
+        const c = canvaPoint(pond.center[0], pond.center[1]);
+
+        // wet bank, then the sandy shore
+        traceSmoothClosed(pondOutline(pond, 1.2));
+        ctx.fillStyle = POND_BANK; ctx.globalAlpha = 0.55; ctx.fill(); ctx.globalAlpha = 1;
+        traceSmoothClosed(pondOutline(pond, 1.09));
+        ctx.fillStyle = POND_SHORE; ctx.fill();
+
+        // the water: lighter in the middle, deeper at the edge
+        const rMap = Math.max(pond.rx * CANVA_SCALE, pond.ry * CANVA_SCALE) * 1.2;
+        const water = ctx.createRadialGradient(c.x, c.y, 2, c.x, c.y, rMap);
+        water.addColorStop(0, POND_WATER_MID);
+        water.addColorStop(1, POND_WATER_EDGE);
+        traceSmoothClosed(pondOutline(pond, 1));
+        ctx.fillStyle = water; ctx.fill();
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.35)"; ctx.lineWidth = 2; ctx.stroke();
+
+        // a few soft ripples and a glint, inside the water only
+        ctx.save();
+        traceSmoothClosed(pondOutline(pond, 1));
+        ctx.clip();
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.30)"; ctx.lineWidth = 1.6; ctx.lineCap = "round";
+        const rip = [[-0.35, -0.10, 0.28], [0.25, 0.22, 0.22], [0.45, -0.25, 0.16]];
+        for (const r of rip) {
+            ctx.beginPath();
+            ctx.ellipse(c.x + r[0] * pond.rx * CANVA_SCALE, c.y + r[1] * pond.ry * CANVA_SCALE,
+                        r[2] * pond.rx * CANVA_SCALE * 0.6, r[2] * pond.ry * CANVA_SCALE * 0.6, 0, 0.2, Math.PI * 1.2);
+            ctx.stroke();
+        }
+        ctx.fillStyle = "rgba(255, 255, 255, 0.22)";
+        ctx.beginPath();
+        ctx.ellipse(c.x - pond.rx * CANVA_SCALE * 0.4, c.y - pond.ry * CANVA_SCALE * 0.45,
+                    pond.rx * CANVA_SCALE * 0.22, pond.ry * CANVA_SCALE * 0.1, -0.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        // the few rocks on the edge
+        pond.rocks.forEach(function (rock, i) {
+            const a = rock.angle * Math.PI / 180;
+            const p = canvaPoint(pond.center[0] + Math.cos(a) * pond.rx * rock.out,
+                                 pond.center[1] + Math.sin(a) * pond.ry * rock.out);
+            drawRock(p.x, p.y, rock.size * CANVA_SCALE * 0.8, pond.seed * 10 + i);
+        });
+    }
+    ctx.restore();
+}
+
 // The parts of the map that never move (grass and walkways) are drawn ONCE into a hidden picture (a layer)
 // and only copied to the screen every frame. This keeps the map smooth on a phone.
 let baseLayer = null;      // grass + walkways
@@ -1021,6 +1163,7 @@ function makeLayer(drawIt) {
 function buildLayers() {
     baseLayer = makeLayer(function () {
         drawGrass();
+        drawPonds();                   // the pond + a few rocks (under the paths)
         drawPaths();                   // shadows + tiled walkways
     });
 }
@@ -1252,11 +1395,14 @@ const birdSpots = [
 // ever touches the wooden frame, whatever the screen size.
 (function () {
     const room = 48;                     // map units kept free around a bird spot
+    const roomTall = 92;                 // rows with names above / below need space for the name
     let minX = view.x, maxX = view.x + view.w, minY = view.y, maxY = view.y + view.h;
     for (const spot of birdSpots) {
-        const roomRight = spot.tidy === "right" ? 150 : room;      // names of the right-hand column need space on the right
+        const roomRight = spot.tidy === "right" ? 215 : room;      // names of the right-hand column need space on the right
+        const roomUp = spot.tidy === "above" ? roomTall : room;
+        const roomDown = spot.tidy === "below" ? roomTall : room;
         minX = Math.min(minX, spot.point.x - room); maxX = Math.max(maxX, spot.point.x + roomRight);
-        minY = Math.min(minY, spot.point.y - room); maxY = Math.max(maxY, spot.point.y + room);
+        minY = Math.min(minY, spot.point.y - roomUp); maxY = Math.max(maxY, spot.point.y + roomDown);
     }
     view.x = minX; view.y = minY; view.w = maxX - minX; view.h = maxY - minY;
 })();
@@ -1272,9 +1418,9 @@ function birdName(id) {
 // On a big laptop screen the badge is full size; on a small phone it shrinks (and so does the name text),
 // so the crowded birds at the start of the walk still fit.
 function birdBadgeRadius() { return Math.max(8.5, Math.min(17, viewScale * 20)); }     // screen pixels
-function labelFontPx()     { return viewScale < 0.45 ? 9.5 : (viewScale < 0.6 ? 10.5 : (viewScale < 0.8 ? 11 : 12)); }
-function labelFont()       { return "700 " + labelFontPx() + "px 'Trebuchet MS', 'Segoe UI', sans-serif"; }
-function labelLineHeight() { return Math.round(labelFontPx() * 1.17); }
+function labelFontPx()     { return viewScale < 0.45 ? 10.5 : (viewScale < 0.6 ? 11.5 : (viewScale < 0.8 ? 12.5 : 13.5)); }
+function labelFont()       { return "800 " + labelFontPx() + "px 'Trebuchet MS', 'Segoe UI', sans-serif"; }
+function labelLineHeight() { return Math.round(labelFontPx() * 1.2); }
 
 // ---------- Bird name label (a small stacked sign) ----------
 // The colour is NOT brown, so the label never blends into the wooden bridge. Change these 2 colours freely.
@@ -1412,6 +1558,11 @@ function keepOutAreas() {
         if (el) out.push({ x: el.offsetLeft - 4, y: el.offsetTop - 12, w: el.offsetWidth + 8, h: el.offsetHeight + 16 });
     }
     out.push(exitSignRect());
+    const pad = document.getElementById("joystick");          // the joystick (phones / tablets) and its hint
+    if (pad && pad.style.display !== "none") {
+        const r = pad.getBoundingClientRect();
+        out.push({ x: r.left - 4, y: r.top - 4, w: r.width + 8, h: r.height + 46 });
+    }
     return out;
 }
 
@@ -1508,47 +1659,66 @@ function layoutBirdSpots() {
     // up and down, so there the normal placement is used.)
     if (!viewRotated) {
         const pk = labelFontPx() / 12;
+        const ex = exitSignRect();
+        const x0 = board.x + SCREEN_EDGE, x1 = board.x + board.w - SCREEN_EDGE;
         for (const mode of ["below", "above", "right"]) {
             const group = items.filter(function (it) { return it.tidy === mode || (mode === "below" && it.tidy === true); });
             if (group.length < 2) continue;
             const horizontal = mode !== "right";
             group.sort(function (a, c) { return horizontal ? a.sx - c.sx : a.sy - c.sy; });
-            let ok = true;
-            group.forEach(function (it, i) {
-                if (!horizontal) { it.limit = undefined; return; }            // a column: the names may be as wide as they like
-                const left = i > 0 ? it.sx - group[i - 1].sx : Infinity;
-                const right = i < group.length - 1 ? group[i + 1].sx - it.sx : Infinity;
-                const room = Math.min(left, right) - 8;                       // the whole label may be this wide
-                if (room < 50) ok = false;
-                it.limit = room - 14 * pk;
-            });
-            if (!ok) continue;
-            const belowY = Math.max.apply(null, group.map(function (it) { return it.sy + it.R + LABEL_GAP; }));
-            const aboveY = Math.min.apply(null, group.map(function (it) { return it.sy - it.R - LABEL_GAP; }));   // bottom edge of the names
-            const rightX = Math.max.apply(null, group.map(function (it) { return it.sx + it.R + LABEL_GAP; }));
-            for (const it of group) {
-                const fresh = buildBirdItem(birdSpots.find(function (b) { return b.id === it.id; }), it.limit);
-                it.lines = fresh.lines; it.w = fresh.w; it.h = fresh.h;
-                if (mode === "below")      { it.lx = it.sx - it.w / 2; it.ly = belowY; }
-                else if (mode === "above") { it.lx = it.sx - it.w / 2; it.ly = aboveY - it.h; }
-                else                       { it.lx = rightX;            it.ly = it.sy - it.h / 2; }
-                // a neat name never sits on the EXIT sign: slide it sideways, just past the sign
-                const ex = exitSignRect();
-                if (rectsHit(it.lx, it.ly, it.w, it.h, ex.x, ex.y, ex.w, ex.h, 0)) {
-                    it.lx = (it.sx >= ex.x + ex.w / 2) ? ex.x + ex.w + 2 : ex.x - it.w - 2;
+
+            // Lay the group out in one neat line (stagger = false) or in two neat lines, one name higher, one lower
+            // (stagger = true: every second name drops down, so each name may be twice as wide). Returns true if it fits.
+            const lay = function (stagger) {
+                group.forEach(function (it, i) {
+                    const left = i > 0 ? it.sx - group[i - 1].sx : Infinity;
+                    const right = i < group.length - 1 ? group[i + 1].sx - it.sx : Infinity;
+                    const gap = Math.min(left, right);
+                    it.limit = !horizontal ? 200 : (stagger ? 2 * gap - 14 : gap - 8) - 14 * pk;
+                    if (horizontal && it.limit < 34) it.limit = 34;
+                    const fresh = buildBirdItem(birdSpots.find(function (b) { return b.id === it.id; }), it.limit);
+                    it.lines = fresh.lines; it.w = fresh.w; it.h = fresh.h;
+                    it.tier = stagger ? i % 2 : 0;
+                });
+                const tierH = [0, 1].map(function (t) {
+                    return Math.max.apply(null, group.filter(function (it) { return it.tier === t; }).map(function (it) { return it.h; }).concat([0]));
+                });
+                const belowY = Math.max.apply(null, group.map(function (it) { return it.sy + it.R + LABEL_GAP; }));
+                const aboveY = Math.min.apply(null, group.map(function (it) { return it.sy - it.R - LABEL_GAP; }));
+                const rightX = Math.max.apply(null, group.map(function (it) { return it.sx + it.R + LABEL_GAP; }));
+                for (const it of group) {
+                    const drop = it.tier ? tierH[0] + 6 : 0;
+                    if (mode === "below")      { it.lx = it.sx - it.w / 2; it.ly = belowY + drop; }
+                    else if (mode === "above") { it.lx = it.sx - it.w / 2; it.ly = aboveY - it.h - drop; }
+                    else                       { it.lx = rightX;            it.ly = it.sy - it.h / 2; }
+                    if (horizontal) it.lx = Math.max(x0, Math.min(it.lx, x1 - it.w));       // never outside the board
+                    // a neat name never sits on the EXIT sign: slide it sideways, just past the sign
+                    if (rectsHit(it.lx, it.ly, it.w, it.h, ex.x, ex.y, ex.w, ex.h, 0)) {
+                        it.lx = (it.sx >= ex.x + ex.w / 2) ? ex.x + ex.w + 2 : ex.x - it.w - 2;
+                    }
+                    // the lowered / raised names are joined to their badge by a thin line
+                    it.leader = it.tier ? { x: Math.max(it.lx + 6, Math.min(it.sx, it.lx + it.w - 6)), y: mode === "below" ? it.ly : it.ly + it.h } : null;
+                    it.placed = true; it.fixed = true;
                 }
-                it.leader = null; it.placed = true; it.fixed = true;
-            }
-            // too tight on this screen (names would touch)? then this group uses the normal placement instead
-            let touching = false;
-            for (let i = 1; i < group.length; i++) {
-                const p = group[i - 1], q = group[i];
-                if (horizontal ? (p.lx + p.w + 2 > q.lx) : (p.ly + p.h + 2 > q.ly)) touching = true;
-            }
-            if (touching) {
+                // every name must stay fully inside the board (a second line of names needs more room)
+                const y0 = board.y + SCREEN_EDGE, y1 = board.y + board.h - SCREEN_EDGE;
+                for (const it of group) if (it.ly < y0 || it.ly + it.h > y1) return false;
+                // names on the same line must not touch
+                for (let k = 0; k < group.length; k++) {
+                    for (let m = k + 1; m < group.length; m++) {
+                        const p = group[k], q = group[m];
+                        if (p.tier !== q.tier) continue;
+                        if (rectsHit(p.lx, p.ly, p.w, p.h, q.lx, q.ly, q.w, q.h, 2)) return false;
+                    }
+                }
+                return true;
+            };
+
+            if (!lay(false) && horizontal && !lay(true)) {
+                // too tight even for two lines: this group uses the normal placement instead
                 for (const it of group) {
                     Object.assign(it, buildBirdItem(birdSpots.find(function (b) { return b.id === it.id; })));
-                    it.fixed = false; it.placed = false;
+                    it.fixed = false; it.placed = false; it.leader = null;
                 }
             }
         }
@@ -1616,28 +1786,70 @@ function drawBirdSpots() {
         ctx.fillText("🐦", sx, sy + 1);
     }
 
-    // 3. names (on top of every badge and line)
+    // 3. names (on top of every badge and line): a teal sign with a soft shadow, a light outline
+    //    and a small pointer tip that points at its badge
     ctx.font = labelFont();
+    const rad = 8;
     for (const it of items) {
         const lx = it.lx, ly = it.ly, w = it.w, lh = it.h;
+
+        // which side faces the badge? (not needed when a thin line leads to the badge)
+        let tip = null;
+        if (!it.leader) {
+            if (ly >= it.sy)            tip = { x: Math.max(lx + 12, Math.min(it.sx, lx + w - 12)), y: ly, dx: 0, dy: -1 };       // name below
+            else if (ly + lh <= it.sy)  tip = { x: Math.max(lx + 12, Math.min(it.sx, lx + w - 12)), y: ly + lh, dx: 0, dy: 1 };  // name above
+            else if (lx >= it.sx)       tip = { x: lx, y: Math.max(ly + 10, Math.min(it.sy, ly + lh - 10)), dx: -1, dy: 0 };     // name to the right
+            else                        tip = { x: lx + w, y: Math.max(ly + 10, Math.min(it.sy, ly + lh - 10)), dx: 1, dy: 0 };  // name to the left
+        }
+        const body = function () {
+            ctx.beginPath();
+            ctx.moveTo(lx + rad, ly);
+            ctx.arcTo(lx + w, ly, lx + w, ly + lh, rad);
+            ctx.arcTo(lx + w, ly + lh, lx, ly + lh, rad);
+            ctx.arcTo(lx, ly + lh, lx, ly, rad);
+            ctx.arcTo(lx, ly, lx + w, ly, rad);
+            ctx.closePath();
+            if (tip) {                                   // the little triangle (6 px high)
+                const px = -tip.dy, py = tip.dx;         // along the edge
+                ctx.moveTo(tip.x + px * 6, tip.y + py * 6);
+                ctx.lineTo(tip.x + tip.dx * 6, tip.y + tip.dy * 6);
+                ctx.lineTo(tip.x - px * 6, tip.y - py * 6);
+                ctx.closePath();
+            }
+        };
+
+        ctx.save();
+        ctx.shadowColor = "rgba(0, 0, 0, 0.35)";
+        ctx.shadowBlur = 7;
+        ctx.shadowOffsetY = 2;
+        body();
         ctx.fillStyle = LABEL_COLOR;
-        ctx.beginPath();
-        ctx.moveTo(lx + 7, ly);
-        ctx.arcTo(lx + w, ly, lx + w, ly + lh, 7);
-        ctx.arcTo(lx + w, ly + lh, lx, ly + lh, 7);
-        ctx.arcTo(lx, ly + lh, lx, ly, 7);
-        ctx.arcTo(lx, ly, lx + w, ly, 7);
-        ctx.closePath();
         ctx.fill();
-        ctx.strokeStyle = LABEL_EDGE;
-        ctx.lineWidth = 1.5;
+        ctx.restore();
+
+        // a light top glow makes the sign look like a smooth board
+        const glow = ctx.createLinearGradient(0, ly, 0, ly + lh);
+        glow.addColorStop(0, "rgba(255, 255, 255, 0.20)");
+        glow.addColorStop(0.5, "rgba(255, 255, 255, 0)");
+        body();
+        ctx.fillStyle = glow;
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255, 244, 214, 0.85)";
+        ctx.lineWidth = 1.6;
+        ctx.lineJoin = "round";
         ctx.stroke();
+
         ctx.fillStyle = "#fff4d6";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
+        ctx.shadowColor = "rgba(0, 0, 0, 0.4)";
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 1;
         for (let i = 0; i < it.lines.length; i++) {
             ctx.fillText(it.lines[i], lx + w / 2, ly + 3.5 * (labelFontPx() / 12) + labelLineHeight() * (i + 0.5) + 0.5);
         }
+        ctx.shadowColor = "transparent";
+        ctx.shadowOffsetY = 0;
     }
     ctx.restore();
 }
@@ -1714,6 +1926,251 @@ if (new URLSearchParams(location.search).has("place")) {
     });
 }
 
+// ======================================================================
+// TREES (round trees from main-map.js, swaying in the wind)
+// ======================================================================
+// Trees are scattered over the free grass by the computer: one candidate per grid cell, and a candidate is
+// DROPPED when it would stand on / too near a walkway or the bridge, in a pond, on a bird badge or its name,
+// under the sign / Back button, or too close to another tree.
+// So a tree can never hide a path or a label. (It is checked on the SCREEN, because a tree is drawn upright
+// on the screen, also when the map is turned on a phone.)
+//
+// TO CHANGE:  TREE_CELL    bigger number = fewer trees (smaller = a denser forest)
+//             TREE_CHANCE  share of cells that try to grow a tree (0 = no trees, 1 = every cell)
+//             EXTRA_TREES  trees you place yourself: [sketch x, sketch y, size]  (same numbers as canvaPoint;
+//                          size 1 = normal). If one of them is dropped, the browser console tells you why.
+const TREE_CELL = 160;           // map units between two tree candidates
+const TREE_CHANCE = 0.72;
+const TREE_MIN_SIZE = 0.85;      // random tree size goes from this ...
+const TREE_MAX_SIZE = 1.2;       // ... to this
+const TREE_PATH_GAP = 6;         // free grass (map units) that must stay between a tree and a walkway
+const TREE_SPACING = 58;         // closest two trees may stand (map units)
+const EXTRA_TREES = [
+    [935, 395, 1.45],     // the big tree in the middle of the loop
+    [868, 425, 1.05],
+    [1005, 380, 1.15]
+];
+
+// Same three greens and the same tree as main-map.js (no pink trees)
+const ROUND_TREE_COLORS = [
+    ["#3f7a46", "#5f9a58", "#356b3e", "#74ab66"],
+    ["#3b7340", "#58934f", "#306338", "#6ea35f"],
+    ["#437f49", "#64a05b", "#3a7141", "#7bb06b"]
+];
+// Drawn around (0, 0) = the base of the trunk on the ground
+function drawRoundTree(seed) {
+    const c = ROUND_TREE_COLORS[Math.floor((seed || 0) * 3) % 3];
+    ctx.save();
+    ctx.translate(0, -22);
+    ctx.scale(1.3, 1.3);
+
+    // soft ground shadow
+    ctx.fillStyle = "rgba(47, 74, 44, 0.19)";
+    ctx.beginPath(); ctx.ellipse(6, 16, 22, 11, 0, 0, Math.PI * 2); ctx.fill();
+
+    // trunk
+    ctx.fillStyle = "#78593c";
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(-4, -2, 8, 24, 3); else ctx.rect(-4, -2, 8, 24);
+    ctx.fill();
+
+    // canopy: four overlapping blobs [dx, dy, radius, colour]
+    const blobs = [[0, -8, 18, c[0]], [-9, -13, 11, c[1]], [9, -3, 12, c[2]], [2, -17, 9, c[3]]];
+    for (const b of blobs) {
+        ctx.fillStyle = b[3];
+        ctx.beginPath(); ctx.arc(b[0], b[1], b[2], 0, Math.PI * 2); ctx.fill();
+    }
+
+    // highlight
+    ctx.fillStyle = "rgba(255, 255, 255, 0.13)";
+    ctx.beginPath(); ctx.arc(-6, -16, 5, 0, Math.PI * 2); ctx.fill();
+
+    ctx.restore();
+}
+
+// ---- helpers for the "is there room for a tree here?" check ----
+const walkSegments = [];
+for (const line of walkways) {
+    for (let i = 0; i < line.length - 1; i++) walkSegments.push([line[i].x, line[i].y, line[i + 1].x, line[i + 1].y]);
+}
+
+// How much free grass lies between the point and the nearest walkway / bridge edge (map units; 0 or less = on it)
+function grassGapToPaths(x, y) {
+    let best = Infinity;
+    for (const s of walkSegments) {
+        const dx = s[2] - s[0], dy = s[3] - s[1];
+        const len2 = dx * dx + dy * dy;
+        let t = len2 > 0 ? ((x - s[0]) * dx + (y - s[1]) * dy) / len2 : 0;
+        t = Math.max(0, Math.min(1, t));
+        const d = Math.hypot(x - (s[0] + dx * t), y - (s[1] + dy * t)) - PATH_WIDTH / 2;
+        if (d < best) best = d;
+    }
+    return best;
+}
+
+// Is the map point inside a pond (k = 1 the water, bigger = with its shore and wet bank)?
+function insidePond(x, y, k) {
+    const sx = unstretchX(x / CANVA_SCALE + CANVA_ORIGIN.x);
+    const sy = y / CANVA_SCALE + CANVA_ORIGIN.y;
+    for (const pond of PONDS) {
+        const ex = (sx - pond.center[0]) / (pond.rx * k), ey = (sy - pond.center[1]) / (pond.ry * k);
+        if (ex * ex + ey * ey < 1) return true;
+    }
+    return false;
+}
+
+// Points of a tree (screen pixels, tree size 1, base at 0,0): the foot of the trunk and the canopy
+const TREE_BODY = [[0, 8], [-14, 3], [14, 3], [0, -26], [-24, -30], [24, -30], [-16, -46], [16, -46], [0, -56]];
+
+// Why can a tree NOT stand here? Returns null when it can, otherwise a short reason.
+function treeProblem(sx, sy, k, others) {
+    // inside the board (a little of the canopy may be cut by the frame, but the trunk must be visible)
+    if (sx < board.x + 6 || sx > board.x + board.w - 6 || sy < board.y + 26 * k || sy > board.y + board.h - 4) return "outside the board";
+
+    for (const p of TREE_BODY) {
+        const m = screenToMap(sx + p[0] * k, sy + p[1] * k);
+        if (grassGapToPaths(m.x, m.y) < TREE_PATH_GAP) return "on or beside a walkway";
+        if (insidePond(m.x, m.y, 1.35)) return "in a pond";
+    }
+
+    const cx = sx, cy = sy - 32 * k, r = 28 * k;      // the canopy as one circle
+    for (const o of others.items) {
+        if (Math.hypot(cx - o.sx, cy - o.sy) < r + o.R + 4 || Math.hypot(sx - o.sx, sy - o.sy) < 12 * k + o.R + 4) return "on a bird badge";
+        if (circleHitsRect(cx, cy, r + 3, o.lx, o.ly, o.w, o.h) || circleHitsRect(sx, sy, 12 * k + 3, o.lx, o.ly, o.w, o.h)) return "on a bird name";
+    }
+    for (const a of others.keepOut) {
+        if (circleHitsRect(cx, cy, r, a.x, a.y, a.w, a.h)) return "under the sign / Back button";
+    }
+    return null;
+}
+
+let treeList = [];                // trees for this screen size, sorted so the lower ones stand in front
+
+function layoutTrees() {
+    // the joystick (phones / tablets) and its "Drag to move" hint are kept free of trees too
+    const keepOut = keepOutAreas();
+    const pad = document.getElementById("joystick");
+    if (pad && pad.style.display !== "none") {
+        const r = pad.getBoundingClientRect();
+        keepOut.push({ x: r.left - 6, y: r.top - 6, w: r.width + 12, h: r.height + 52 });
+    }
+    const others = { items: birdLayout, keepOut: keepOut };
+    const trees = [];
+    const farEnough = function (mx, my) {
+        for (const t of trees) if (Math.hypot(t.mx - mx, t.my - my) < TREE_SPACING) return false;
+        return true;
+    };
+    const tryTree = function (mx, my, size, seed, label) {
+        const p = mapToScreen({ x: mx, y: my });
+        const k = viewScale * size;
+        const problem = treeProblem(p.x, p.y, k, others) || (farEnough(mx, my) ? null : "too close to another tree");
+        if (problem) { if (label) console.warn("Extra tree " + label + " was not drawn: " + problem + "."); return; }
+        trees.push({ mx: mx, my: my, sx: p.x, sy: p.y, k: k, seed: seed });
+    };
+
+    // the trees you placed yourself come first
+    EXTRA_TREES.forEach(function (t, i) {
+        const m = canvaPoint(t[0], t[1]);
+        tryTree(m.x, m.y, t[2] || 1, pseudoRandom(i * 5.1 + 2), "#" + (i + 1) + " (" + t[0] + ", " + t[1] + ")");
+    });
+
+    // then one candidate per grid cell, nudged by a repeatable random amount
+    const cols = Math.ceil(view.w / TREE_CELL), rows = Math.ceil(view.h / TREE_CELL);
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+            const seed = r * 53 + c * 11 + 3;
+            if (pseudoRandom(seed * 1.7 + 0.5) > TREE_CHANCE) continue;
+            const mx = view.x + (c + 0.15 + 0.7 * pseudoRandom(seed * 2.3 + 1)) * TREE_CELL;
+            const my = view.y + (r + 0.15 + 0.7 * pseudoRandom(seed * 3.1 + 2)) * TREE_CELL;
+            const size = TREE_MIN_SIZE + (TREE_MAX_SIZE - TREE_MIN_SIZE) * pseudoRandom(seed * 4.3 + 3);
+            tryTree(mx, my, size, pseudoRandom(seed * 6.1 + 4), null);
+        }
+    }
+
+    trees.sort(function (a, b) { return a.sy - b.sy; });     // lower on the screen = in front
+    return trees;
+}
+
+// Drawn every frame (they sway), in SCREEN pixels so they stay upright on a turned phone map
+function drawTrees() {
+    if (!treeList.length) return;
+    const t = performance.now() / 1000;
+
+    ctx.save();
+    ctx.setTransform(pixelRatioNow, 0, 0, pixelRatioNow, 0, 0);
+    for (const tree of treeList) {
+        // wind: the swing grows and shrinks slowly (gusts), same as main-map.js
+        const gust = 0.5 + 0.5 * Math.sin(t * 0.35 + tree.sx * 0.01);
+        const sway = Math.sin(t * 1.3 + tree.seed * 6.28) * (0.012 + 0.016 * gust);
+
+        ctx.save();
+        ctx.translate(tree.sx, tree.sy);     // TRANSLATION: to the foot of the tree
+        ctx.scale(tree.k, tree.k);           // SCALING: the map size times the tree's own size
+        ctx.rotate(sway);                    // ROTATION: sway round the base
+        drawRoundTree(tree.seed);
+        ctx.restore();
+    }
+    ctx.restore();
+}
+
+// ======================================================================
+// BUTTERFLIES (from main-map.js)
+// ======================================================================
+// Each butterfly drifts round a centre point in a lazy figure-eight and flaps its wings.
+// cx, cy = centre, ax, ay = how far it drifts sideways / up and down. All four are SKETCH pixels (same numbers as
+// canvaPoint). Add a line = one more butterfly, delete a line = one less.
+const butterflies = [
+    { cx: 935,  cy: 380, ax: 60, ay: 26, speed: 0.55, color: "#ffb300" },    // over the pond
+    { cx: 880,  cy: 330, ax: 40, ay: 20, speed: 0.62, color: "#ff7ab6" },    // inside the loop
+    { cx: 1000, cy: 470, ax: 38, ay: 18, speed: 0.58, color: "#ffffff" },    // inside the loop, low
+    { cx: 700,  cy: 400, ax: 30, ay: 40, speed: 0.50, color: "#ffd54f" },    // left of the walk
+    { cx: 860,  cy: 640, ax: 60, ay: 14, speed: 0.70, color: "#a58fd6" },    // below the cages
+    { cx: 1230, cy: 300, ax: 24, ay: 38, speed: 0.52, color: "#8fc2ee" }     // right of the walk
+];
+
+function drawButterflies() {
+    const t = performance.now() / 1000;
+    const s = Math.max(0.8, Math.min(1.3, viewScale * 1.2));      // a little smaller on a small phone screen
+
+    ctx.save();
+    ctx.setTransform(pixelRatioNow, 0, 0, pixelRatioNow, 0, 0);
+
+    for (let i = 0; i < butterflies.length; i++) {
+        const b = butterflies[i];
+        const phase = i * 1.7;
+        // where it is at time tt (a lazy figure-eight), turned into a screen position
+        const where = function (tt) {
+            return mapToScreen(canvaPoint(b.cx + b.ax * Math.sin(tt * b.speed + phase),
+                                          b.cy + b.ay * Math.sin(tt * b.speed * 2 + phase)));
+        };
+        const p = where(t), q = where(t + 0.05);               // q is a moment later: it shows the flying direction
+
+        const flap = 0.25 + 0.75 * Math.abs(Math.sin(t * 13 + phase));   // wings open and close
+
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(Math.atan2(q.y - p.y, q.x - p.x) + Math.PI / 2);      // face the flying direction
+        ctx.scale(s, s);
+
+        ctx.fillStyle = b.color;
+        ctx.strokeStyle = "rgba(60, 40, 20, 0.6)";
+        ctx.lineWidth = 0.8;
+        for (const side of [-1, 1]) {
+            ctx.beginPath();
+            ctx.ellipse(side * 5 * flap, -3, 5 * flap, 6.5, side * 0.4, 0, Math.PI * 2);
+            ctx.fill(); ctx.stroke();
+            ctx.beginPath();
+            ctx.ellipse(side * 4 * flap, 4, 3.5 * flap, 4.5, side * -0.3, 0, Math.PI * 2);
+            ctx.fill(); ctx.stroke();
+        }
+        ctx.fillStyle = "#3b2a14";
+        ctx.beginPath(); ctx.ellipse(0, 0, 1.4, 6, 0, 0, Math.PI * 2); ctx.fill();   // body
+
+        ctx.restore();
+    }
+    ctx.restore();
+}
+
 // Draw complete map (order matters: later drawings appear on top)
 function drawMap() {
     if (!baseLayer) return;
@@ -1726,7 +2183,9 @@ function drawMap() {
     ctx.clip();                                      //    everything below is only visible inside the board
     ctx.setTransform(viewMatrix[0], viewMatrix[1], viewMatrix[2], viewMatrix[3], viewMatrix[4], viewMatrix[5]);
 
-    drawLayer(baseLayer);                            // 1. grass, tiled walkways
+    drawLayer(baseLayer);                            // 1. grass, pond, tiled walkways
+    drawTrees();                                     // 1b. swaying trees (never on a path or a label, see layoutTrees)
+    drawButterflies();                               // 1c. butterflies
     drawDottedRoute(guideRoutes);                    // 2. the blue dotted guide line (entry to exit + the two cage paths)
     drawExitSign();                                  // 3. the EXIT sign at the end of the walk
     drawBirdSpots();                                 // 4. bird placeholder markers
@@ -1811,8 +2270,10 @@ function resizeCanvas() {
     screenCtx.setTransform(viewMatrix[0], viewMatrix[1], viewMatrix[2], viewMatrix[3], viewMatrix[4], viewMatrix[5]);
 
     grassPattern = buildGrassPattern(pixelRatio);
+    groundFlowers = buildGroundFlowers(screenWidth, screenHeight);
     buildLayers();
     birdLayout = layoutBirdSpots();      // badge + name positions for this screen size
+    treeList = layoutTrees();            // trees go where no path, pond, badge or name is
     drawMap();
 }
 
