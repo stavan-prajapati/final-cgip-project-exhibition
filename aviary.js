@@ -7,23 +7,23 @@
 //
 // FIXED VISITING SEQUENCE (the layout makes any other order impossible):
 //
-//     ENTRANCE (bottom)  ->  DOME 1  ->  BRIDGE  ->  DOME 2  ->  CAGE PATH  ->  EXIT (top)
+//     ENTRANCE (bottom)  ->  DOME 1  ->  BRIDGE  ->  DOME 2  ->  "CAGED BIRDS" MARKER (end of the walk)
 //
 //   * Entrance + dome 1 are ONE walkway (walkway 0). It ends under the west end of the bridge.
 //     The entrance joins dome 1 at its south-east corner, but the BRIDGE passes OVER that
 //     corner, so the visitor can never step from the junction onto the bridge.
 //     The only way onto the bridge is to walk all the way round dome 1 to its west door.
-//   * Dome 2 + cage path + exit are ONE walkway (walkway 1). It starts under the east end
-//     of the bridge. The only way to reach the cages is to walk round dome 2 first.
-//   * Walkways 2 and 3 are short side paths into the cage area (same ground, same walkway).
+//   * Dome 2 is the second walkway (walkway 1). It starts under the east end of the bridge and ends
+//     at the "Caged Birds" marker. The caged birds have their OWN page (cages.html), so there is no
+//     cage path on this map any more: the marker asks "Visit the Caged Birds?" and opens that page.
 //
 // Surfaces:
 //   - entry stretch (bottom)  : ground tiles
 //   - dome 1, bridge, dome 2  : wooden deck (planks + railings)
-//   - cage path + exit        : ground tiles (same tiles as main-map.js, NOT a bridge)
+//   - last stretch of dome 2  : ground tiles (same tiles as main-map.js, NOT a bridge)
 //
 // The map sits on a wooden-framed BOARD, like the main map (see "MAP BOARD" below).
-// The blue dotted guide line is ONE continuous line from the entrance to the exit.
+// The blue dotted guide line is ONE continuous line from the entrance to the "Caged Birds" marker.
 //
 // No trees on this map for now.
 // ============================================================
@@ -290,22 +290,16 @@ const walkways = [
     curvedLine([[700, 578], [700, 468], [655, 410], [655, 298], [588, 248], [428, 248],
                 [375, 315], [375, 380], [455, 405], [540, 405]]),
 
-    // 1. DOME 2 + CAGE PATH + EXIT.
-    //    It starts under the EAST end of the bridge, goes round dome 2, then down to the cage
-    //    path (bottom edge, right side, top edge) and leaves through the exit at the top.
+    // 1. DOME 2 + its tail.
+    //    It starts under the EAST end of the bridge, goes round dome 2 and ends with a short tail
+    //    going down (at the "Caged Birds" marker). The old cage path, its side paths and the exit
+    //    were removed: the caged birds are on their own page now.
     curvedLine([[680, 405], [715, 405], [762, 345], [850, 337], [928, 340], [995, 378],
-                [990, 452], [915, 485], [835, 483], [745, 460], [745, 543],
-                [1080, 543], [1080, 268], [810, 268], [810, 205]]),
-
-    // 2. and 3. Short side paths leading to the cages (dead ends).
-    // They start a little INSIDE the cage path (y = 540 / y = 500, not on the corner itself),
-    // so they overlap it and join it with no gap, even where the cage path turns a rounded corner.
-    curvedLine([[933, 540], [933, 600]]),
-    curvedLine([[1080, 500], [1080, 610]])
+                [990, 452], [915, 485], [835, 483], [745, 460], [745, 543]])
 ];
 
-// Which ground "way" each walkway belongs to (walkways 1, 2 and 3 are all connected on the ground)
-const WAY_OF_WALKWAY = [0, 1, 1, 1];
+// Which ground "way" each walkway belongs to (walkway 0 = entrance + dome 1, walkway 1 = dome 2)
+const WAY_OF_WALKWAY = [0, 1];
 
 // ---------- Bridge (the grey part of the sketch) ----------
 // It runs from the west end of dome 1's bottom edge to the start of dome 2, OVER the corner
@@ -319,7 +313,7 @@ const bridge = (function () {
 // ---------- Wooden deck: the part of the walkway that is a bridge ----------
 // Dome 1 and dome 2 are wooden decks. The entry stretch (from y = 578 up to y = 500) stays ground tiles.
 // Dome 2's deck runs down its tail and ends a little ABOVE the bend (sketch x = 745, y = 492), on the straight part.
-// From there on (the bend, cage path, side paths, exit) it is ground tiles,
+// From there on (the last stretch down to the "Caged Birds" marker) it is ground tiles,
 // and a dark beam across the path marks the step from the wooden deck onto the tiles.
 // To make a stretch longer or shorter, change the sketch point used below.
 const deckLines = [
@@ -328,40 +322,16 @@ const deckLines = [
 ];
 
 // ---------- Blue dotted guide line ----------
-// ONE continuous line from the entrance (bottom) to the exit (top):
-//   entrance -> dome 1 -> over the bridge -> dome 2 -> cage path -> exit.
+// ONE continuous line from the entrance (bottom) to the "Caged Birds" marker:
+//   entrance -> dome 1 -> over the bridge -> dome 2 -> down the tail.
 // It is drawn on top of everything, so it never disappears where the path goes under the bridge.
-// Plus a short dotted branch into each of the two cage side paths.
 const routeToBridge = sliceLine(walkways[0], 0, distanceAlong(walkways[0], canvaPoint(515, 405)));
 const routeFromBridge = sliceLine(walkways[1], distanceAlong(walkways[1], canvaPoint(715, 405)), Infinity);
 const mainRoute = routeToBridge.concat(
     [{ x: routeFromBridge[0].x, y: routeToBridge[routeToBridge.length - 1].y }],   // straight along the bridge
     routeFromBridge
 );
-// The dotted branches into the cages must start ON the blue line, so the line looks joined.
-// (nearestOnLine finds the point of the main line that is closest to the place where the side path leaves.)
-function nearestOnLine(line, p) {
-    let best = Infinity, bestPoint = line[0];
-    for (let i = 0; i < line.length - 1; i++) {
-        const a = line[i], b = line[i + 1];
-        const len2 = (b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y);
-        let t = len2 === 0 ? 0 : ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / len2;
-        t = Math.max(0, Math.min(1, t));
-        const q = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
-        const d = Math.hypot(p.x - q.x, p.y - q.y);
-        if (d < best) { best = d; bestPoint = q; }
-    }
-    return bestPoint;
-}
-// from the main line, to the corner where the side path starts, then down the side path (with a soft bend)
-function cageBranch(startSketchPoint, endSketchPoint) {
-    const start = canvaPoint(startSketchPoint[0], startSketchPoint[1]);
-    const end = canvaPoint(endSketchPoint[0], endSketchPoint[1]);
-    return roundCorners([nearestOnLine(mainRoute, start), start, end], 40);
-}
-const cageBranch1 = cageBranch([933, 543], [933, 600]);
-const cageBranch2 = cageBranch([1080, 543], [1080, 610]);
-const guideRoutes = [mainRoute, cageBranch1, cageBranch2];   // remove the last two to hide the cage branches
+const guideRoutes = [mainRoute];
 
 // ---------- View box: the part of the map that is fitted to the screen ----------
 // Worked out from the walkways, with a free grass border around them.
@@ -393,7 +363,7 @@ const ROTATE_ON_PORTRAIT = true;
 // Corners (points between two pieces) get a circle, so they stay walkable.
 // The ground is split into TWO separate ways:
 //   way 0 = entrance + dome 1
-//   way 1 = dome 2 + cage path + side paths + exit
+//   way 1 = dome 2 (and its tail down to the "Caged Birds" marker)
 // so the visitor can never walk from one to the other on the ground, even where they pass
 // close to each other under the bridge. The only link between them is the bridge.
 const wayParts = [
@@ -935,7 +905,7 @@ function drawShadow() {
 }
 
 // Draw the walkways as tiles: a thick line whose "ink" is the tile pattern
-// (this is also the finished look of the entry stretch, the cage path, the side paths and the exit)
+// (this is also the finished look of the entry stretch and of the last stretch of dome 2)
 function drawPaths() {
     drawShadow();
 
@@ -1215,7 +1185,7 @@ function makeLayer(drawIt) {
 function buildLayers() {
     baseLayer = makeLayer(function () {
         drawGrass();
-        drawPaths();                                           // shadows + tiled walkways (entry, cage path, side paths and exit stay tiles)
+        drawPaths();                                           // shadows + tiled walkways (the entry stretch and the last stretch of dome 2 stay tiles)
         for (const line of deckLines) drawDeckPlanks(line);    // wooden deck of dome 1 and dome 2
         for (const line of deckLines) { drawDeckEnds(line); drawDeckRails(line); }
     });
@@ -1384,25 +1354,6 @@ function drawFrame() {
 //           so pick a spot on the grass just NEXT to a path (about 35 px from the path's center line,
 //           and with free grass below it, because the name label is drawn under the badge).
 const birdSpots = [
-    // --- bottom row (all y = 576) ---
-    { id: "blue-and-golden-macaw",  point: canvaPoint(771, 576), tidy: true },
-    { id: "african-grey-parrot",    point: canvaPoint(813, 576), tidy: true },
-    { id: "scarlet-macaw",          point: canvaPoint(852, 576), tidy: true },
-    { id: "plum-headed-parakeet",   point: canvaPoint(902, 576), tidy: true },
-    { id: "budgerigar",             point: canvaPoint(965, 576) },
-    { id: "peach-faced-lovebird",   point: canvaPoint(996, 576) },
-    { id: "cockatiel",              point: canvaPoint(1055, 576) },
-    // --- right column (all x = 1114, the pigeon is the corner) ---
-    { id: "blue-crowned-pigeon",    point: canvaPoint(1114, 576) },
-    { id: "diamond-dove",           point: canvaPoint(1114, 536) },
-    { id: "zebra-finch",            point: canvaPoint(1114, 492) },
-    { id: "golden-pheasant",        point: canvaPoint(1114, 430) },
-    { id: "ring-necked-pheasant",   point: canvaPoint(1114, 329) },
-    // --- top row (all y = 234) ---
-    { id: "white-peacock",          point: canvaPoint(1055, 234) },
-    { id: "indian-peafowl",         point: canvaPoint(975, 234) },
-    { id: "red-junglefowl",         point: canvaPoint(891, 234) },
-    { id: "indian-grey-hornbill",   point: canvaPoint(844, 234) },
     // --- inside dome 2 (eclectus and sun conure y = 304, swans y = 432) ---
     { id: "eclectus-parrot",        point: canvaPoint(772, 304) },
     { id: "sun-conure",             point: canvaPoint(842, 304) },
@@ -1416,6 +1367,16 @@ const birdSpots = [
     { id: "indian-spotted-billed-duck", point: canvaPoint(441, 359) }
 ];
 
+// ---------- The CAGED birds moved to their own page (cages.html) ----------
+// They stood along the old cage path. They are NOT drawn on this map any more, but their data stays in
+// data/aviary-data.js, and these are their old spots (sketch pixels) in case you want to reuse them:
+//   blue-and-golden-macaw (771, 576)   african-grey-parrot (813, 576)   scarlet-macaw (852, 576)
+//   plum-headed-parakeet (902, 576)    budgerigar (965, 576)            peach-faced-lovebird (996, 576)
+//   cockatiel (1055, 576)              blue-crowned-pigeon (1114, 576)  diamond-dove (1114, 536)
+//   zebra-finch (1114, 492)            golden-pheasant (1114, 430)      ring-necked-pheasant (1114, 329)
+//   white-peacock (1055, 234)          indian-peafowl (975, 234)        red-junglefowl (891, 234)
+//   indian-grey-hornbill (844, 234)
+
 // Make sure the view box also holds every bird marker (plus room for its badge), so none of them
 // ever touches the wooden frame, whatever the screen size.
 (function () {
@@ -1425,6 +1386,29 @@ const birdSpots = [
         minX = Math.min(minX, spot.point.x - room); maxX = Math.max(maxX, spot.point.x + room);
         minY = Math.min(minY, spot.point.y - room); maxY = Math.max(maxY, spot.point.y + room);
     }
+    view.x = minX; view.y = minY; view.w = maxX - minX; view.h = maxY - minY;
+})();
+
+// ======================================================================
+// "CAGED BIRDS" MARKER (end of the walk)
+// ======================================================================
+// A round badge like the place badges of the main map, at the end of dome 2's tail.
+// When the visitor reaches it, a popup asks "Visit the Caged Birds?". The button opens cages.html
+// (the caged birds have their own page; that page is made later).
+const CAGE_LINK = { page: "cages.html", question: "Visit the Caged Birds?", button: "Visit Cages" };
+const cageMarker = {
+    name: "Caged Birds",
+    color: "#3949ab",                                       // indigo: different from the purple Aviary badge
+    point: walkways[1][walkways[1].length - 1],             // the very end of the walk (map units)
+    trigger: 60                                             // how close the visitor must come (map units)
+};
+
+// Keep the badge and its name inside the view box (the name stands under the badge on the screen,
+// which is "south" on an upright map and "east" on a phone where the map is turned a quarter turn)
+(function () {
+    const p = cageMarker.point;
+    const minX = Math.min(view.x, p.x - 90), maxX = Math.max(view.x + view.w, p.x + 170);
+    const minY = Math.min(view.y, p.y - 60), maxY = Math.max(view.y + view.h, p.y + 170);
     view.x = minX; view.y = minY; view.w = maxX - minX; view.h = maxY - minY;
 })();
 
@@ -1813,6 +1797,135 @@ function updateBirdPopup() {
     }
 }
 
+// ---------- "Caged Birds" marker: icon, badge, name ----------
+// A small bird cage, drawn with white lines (designed for a badge of radius 26, like the icons of the main map).
+function drawCageIcon() {
+    ctx.strokeStyle = "#fff";
+    ctx.fillStyle = "#fff";
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    // hanging ring
+    ctx.lineWidth = 2.2;
+    ctx.beginPath(); ctx.arc(0, -20, 2.8, 0, Math.PI * 2); ctx.stroke();
+
+    // dome
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    ctx.moveTo(-13, 13);
+    ctx.lineTo(-13, -2);
+    ctx.quadraticCurveTo(-13, -16, 0, -16);
+    ctx.quadraticCurveTo(13, -16, 13, -2);
+    ctx.lineTo(13, 13);
+    ctx.stroke();
+
+    // bars
+    ctx.lineWidth = 1.8;
+    for (const x of [-6.5, 0, 6.5]) {
+        ctx.beginPath(); ctx.moveTo(x, -15); ctx.lineTo(x, 13); ctx.stroke();
+    }
+
+    // base
+    ctx.fillRect(-15, 13, 30, 4.5);
+
+    // the little bird inside
+    ctx.fillStyle = "#ffd54f";
+    ctx.beginPath(); ctx.arc(0, 6, 3.6, 0, Math.PI * 2); ctx.fill();
+}
+
+// Drawn in SCREEN pixels (like the bird markers), so it stays upright and the same size on a turned phone map.
+function drawCageMarker() {
+    const t = performance.now() / 1000;
+    const c = mapToScreen(cageMarker.point);
+    const R = Math.max(14, Math.min(28, viewScale * 36));
+    const bob = Math.sin(t * 2.2) * 2;
+    const phase = (t * 0.7) % 1;
+    const near = Math.hypot(visitor.x - cageMarker.point.x, visitor.y - cageMarker.point.y) <= cageMarker.trigger;
+
+    ctx.save();
+    ctx.setTransform(pixelRatioNow, 0, 0, pixelRatioNow, 0, 0);
+
+    // pulsing ring
+    ctx.strokeStyle = cageMarker.color;
+    ctx.globalAlpha = (1 - phase) * 0.5;
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(c.x, c.y + bob, R + 3 + phase * R * 0.6, 0, Math.PI * 2); ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // golden glow when the visitor has reached it
+    if (near) {
+        ctx.strokeStyle = "#ffd54f";
+        ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.arc(c.x, c.y + bob, R + 7, 0, Math.PI * 2); ctx.stroke();
+    }
+
+    // soft shadow, white ring, colored badge
+    ctx.fillStyle = "rgba(0, 0, 0, 0.25)";
+    ctx.beginPath(); ctx.arc(c.x, c.y + bob + 3, R + 3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#fff";
+    ctx.beginPath(); ctx.arc(c.x, c.y + bob, R + 3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = cageMarker.color;
+    ctx.beginPath(); ctx.arc(c.x, c.y + bob, R, 0, Math.PI * 2); ctx.fill();
+
+    ctx.save();
+    ctx.translate(c.x, c.y + bob);
+    ctx.scale(R / 26, R / 26);
+    drawCageIcon();
+    ctx.restore();
+
+    // name under the badge: white label with a colored border, two short lines
+    const lines = cageMarker.name.split(" ");
+    const fontPx = Math.round(Math.max(11, Math.min(15, R * 0.62)));
+    const lineH = Math.round(fontPx * 1.2);
+    ctx.font = "700 " + fontPx + "px 'Trebuchet MS', 'Segoe UI', sans-serif";
+    let widest = 0;
+    for (const line of lines) widest = Math.max(widest, ctx.measureText(line).width);
+    const w = widest + 16, h = lines.length * lineH + 8;
+    const lx = c.x - w / 2, ly = c.y + R + 9;
+
+    ctx.fillStyle = "rgba(0, 0, 0, 0.18)";
+    roundedRect(lx, ly + 2, w, h, 8); ctx.fill();
+    roundedRect(lx, ly, w, h, 8);
+    ctx.fillStyle = "#ffffff"; ctx.fill();
+    ctx.strokeStyle = cageMarker.color; ctx.lineWidth = 2; ctx.stroke();
+
+    ctx.fillStyle = "#263238";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    for (let i = 0; i < lines.length; i++) {
+        ctx.fillText(lines[i], c.x, ly + 4 + lineH * (i + 0.5));
+    }
+    ctx.restore();
+}
+
+// ---------- "Visit the Caged Birds?" popup (same look as the main map's Aviary / Zoo popup) ----------
+const cagePopup = document.createElement("div");
+cagePopup.className = "arrival-popup";
+cagePopup.setAttribute("role", "status");
+cagePopup.innerHTML =
+    '<span class="arrival-popup-icon" aria-hidden="true">&#128038;</span>' +
+    '<span class="arrival-popup-text"></span>' +
+    '<button type="button"></button>';
+cagePopup.querySelector(".arrival-popup-text").textContent = CAGE_LINK.question;
+cagePopup.querySelector("button").textContent = CAGE_LINK.button;
+cagePopup.style.display = "none";
+document.body.appendChild(cagePopup);
+
+cagePopup.querySelector("button").addEventListener("click", function () {
+    window.location.href = CAGE_LINK.page;           // yes: open the cage page
+});
+
+let cageNearby = false;
+
+function updateCagePopup() {
+    const reached = Math.hypot(visitor.x - cageMarker.point.x, visitor.y - cageMarker.point.y) <= cageMarker.trigger;
+    const cardOpen = typeof isBirdCardOpen === "function" && isBirdCardOpen();
+    const show = reached && !cardOpen;
+    if (show === cageNearby) return;                 // nothing changed
+    cageNearby = show;
+    cagePopup.style.display = show ? "flex" : "none";
+}
+
 // ---------- Placement helper: open aviary.html?place ----------
 // Click the map where a bird should stand. A "New spot" marker appears there and a panel shows the
 // exact line to paste into birdSpots (click the panel to copy it). Nothing is saved by itself.
@@ -1870,6 +1983,7 @@ function drawMap() {
     drawLayer(bridgeLayer);                          // 5. the bridge lies over everything below it
     drawDottedRoute(guideRoutes);                    // 6. ONE continuous blue dotted line, entrance to exit
     drawBirdSpots();                                 // 7. bird placeholder markers
+    drawCageMarker();                                // 7b. the "Caged Birds" marker at the end of the walk
     if (!visitorIsUnderBridge()) drawVisitor();      // 8. visitor pointer, on top
 
     ctx.setTransform(pixelRatioNow, 0, 0, pixelRatioNow, 0, 0);
@@ -1966,6 +2080,7 @@ function animateRoute(now) {
 
     updateVisitor(dt);                   // the visitor moves with WASD / joystick
     updateBirdPopup();                   // "You reached ..." popup near a bird
+    updateCagePopup();                   // "Visit the Caged Birds?" popup at the end of the walk
 
     drawMap();
     requestAnimationFrame(animateRoute);
