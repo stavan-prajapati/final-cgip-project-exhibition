@@ -407,56 +407,123 @@ window.addEventListener("blur", () => {
     for (const k in keys) keys[k] = false;     // forget keys if the tab loses focus
 });
 
-// ---------- Controls: joystick (mobile + tablet only, right side) ----------
-const JOY_SIZE = 130;          // diameter of the joystick base (screen pixels)
+// ---------- Controls: joystick (mobile + tablet only, bottom right) ----------
+const JOY_SIZE = 110;          // biggest diameter of the joystick pad (screen pixels); smaller screens use less
 const JOY_DEAD_ZONE = 0.15;    // tiny thumb movements are ignored
 const joy = { x: 0, y: 0 };    // joystick direction, each from -1 to 1
 
 function createJoystick() {
     // The joystick is always created, but only SHOWN while touch is being used
     // (PC users use WASD). See "When is the joystick visible?" below.
+    //
+    // Look: a round wooden-and-cream pad with FOUR ARROWS and a big green thumb knob, and a small hint
+    // "Drag to move" that disappears after the first use. The arrow you push toward lights up.
 
-    const knobSize = JOY_SIZE * 0.45;
-    const maxDist = JOY_SIZE * 0.3;           // how far the knob can move from the center
+    // The pad size follows the screen: big enough for a thumb, never too big for a small phone.
+    function joySize() {
+        return Math.round(Math.max(84, Math.min(JOY_SIZE, Math.min(window.innerWidth, window.innerHeight) * 0.27)));
+    }
+    const JOY_BOTTOM = 36;        // gap below the pad (screen pixels): leaves room for the hint under it
+    const IDLE_OPACITY = 0.5;     // see-through while nobody touches it, so paths and signs stay visible
+    const HELD_OPACITY = 0.9;     // clearer while it is held
+    const KNOB_SHARE = 0.42;      // knob diameter, as a share of the pad
+    const TRAVEL_SHARE = 0.32;    // how far the knob may leave the centre, as a share of the pad
 
     // z-index 5 keeps the joystick BELOW the information card (the card uses 10)
     const base = document.createElement("div");
+    base.id = "joystick";
+    base.setAttribute("role", "application");
+    base.setAttribute("aria-label", "Joystick: drag to move the pointer");
     base.style.cssText =
         "position:fixed; z-index:5; border-radius:50%;" +
-        `right:35px;` +
-        `bottom:calc(110px + env(safe-area-inset-bottom, 0px));` +
-        `width:${JOY_SIZE}px; height:${JOY_SIZE}px;` +
-        "opacity:0.6; background:rgba(255,244,214,0.35); border:3px solid rgba(138,92,51,0.9);" +
-        "box-shadow:0 2px 10px rgba(0,0,0,0.25);" +
-        "touch-action:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;";
+        "right:calc(14px + env(safe-area-inset-right, 0px));" +
+        `bottom:calc(${JOY_BOTTOM}px + env(safe-area-inset-bottom, 0px));` +
+        "background:radial-gradient(circle at 50% 35%, #fff8e3 0%, #f1dfb4 58%, #c9a56e 100%);" +
+        "border:3px solid #6f4524; opacity:" + IDLE_OPACITY + ";" +
+        "box-shadow:0 0 0 2px rgba(255,244,214,0.9), 0 4px 10px rgba(0,0,0,0.3), inset 0 2px 4px rgba(255,255,255,0.55);" +
+        "touch-action:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;" +
+        "-webkit-tap-highlight-color:transparent; cursor:grab;" +
+        "transition:transform 0.15s ease, box-shadow 0.15s ease, opacity 0.2s ease;";
 
+    // a thin inner ring: "the knob travels inside here"
+    const track = document.createElement("div");
+    track.style.cssText =
+        "position:absolute; inset:19%; border-radius:50%; pointer-events:none;" +
+        "border:2px solid rgba(78,49,25,0.22); background:rgba(78,49,25,0.06);";
+    base.appendChild(track);
+
+    // four chevron arrows (up is always up on the screen, even when the map is turned a quarter turn on a phone)
+    const ARROWS = [
+        { dir: "up",    rot: 0,   css: "top:5%; left:50%; margin-left:-9%;" },
+        { dir: "down",  rot: 180, css: "bottom:5%; left:50%; margin-left:-9%;" },
+        { dir: "left",  rot: -90, css: "left:5%; top:50%; margin-top:-9%;" },
+        { dir: "right", rot: 90,  css: "right:5%; top:50%; margin-top:-9%;" }
+    ];
+    const arrowEls = {};
+    for (const a of ARROWS) {
+        const el = document.createElement("span");
+        el.innerHTML =
+            '<svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true">' +
+            '<path d="M4.5 15.5 L12 8 L19.5 15.5" fill="none" stroke="#fff4d6" stroke-width="6.2" stroke-linecap="round" stroke-linejoin="round"/>' +
+            '<path d="M4.5 15.5 L12 8 L19.5 15.5" fill="none" stroke="#5b3d20" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>' +
+            "</svg>";
+        el.style.cssText =
+            "position:absolute; width:20%; height:20%; pointer-events:none; opacity:0.8;" +
+            `transform:rotate(${a.rot}deg); transition:opacity 0.1s ease, filter 0.1s ease;` + a.css;
+        base.appendChild(el);
+        arrowEls[a.dir] = el;
+    }
+
+    // the thumb knob
     const knob = document.createElement("div");
     knob.style.cssText =
         "position:absolute; left:50%; top:50%; border-radius:50%; pointer-events:none;" +
-        `width:${knobSize}px; height:${knobSize}px;` +
-        `margin:${-knobSize / 2}px 0 0 ${-knobSize / 2}px;` +
-        "background:rgba(63,143,74,0.95); border:3px solid #fff4d6;" +
-        "box-shadow:0 2px 6px rgba(0,0,0,0.3);";
-
-    // Four arrows on the base show which way each push moves the pointer (up is always up on the screen,
-    // even when the map is turned a quarter turn on a phone).
-    const ARROWS = [
-        { text: "\u25B2", css: "top:5px; left:50%; transform:translateX(-50%);" },
-        { text: "\u25BC", css: "bottom:5px; left:50%; transform:translateX(-50%);" },
-        { text: "\u25C0", css: "left:6px; top:50%; transform:translateY(-50%);" },
-        { text: "\u25B6", css: "right:6px; top:50%; transform:translateY(-50%);" }
-    ];
-    for (const arrow of ARROWS) {
-        const mark = document.createElement("span");
-        mark.textContent = arrow.text;
-        mark.style.cssText =
-            "position:absolute; pointer-events:none; line-height:1; font-size:15px;" +
-            "color:#4e3119; text-shadow:0 1px 0 rgba(255,244,214,0.9);" + arrow.css;
-        base.appendChild(mark);
-    }
-
+        "background:radial-gradient(circle at 35% 28%, #8fe09a 0%, #3f8f4a 58%, #2a6a35 100%);" +
+        "border:3px solid #fff4d6;" +
+        "box-shadow:0 5px 10px rgba(0,0,0,0.4), inset 0 -4px 6px rgba(0,0,0,0.25), inset 0 3px 5px rgba(255,255,255,0.35);" +
+        "transition:transform 0.14s ease-out;";
+    const grip = document.createElement("div");           // small ring on the knob: looks like a thumb rest
+    grip.style.cssText =
+        "position:absolute; inset:27%; border-radius:50%; pointer-events:none;" +
+        "border:2px solid rgba(255,244,214,0.55);";
+    knob.appendChild(grip);
     base.appendChild(knob);
+
+    // the hint under the pad, until the person has used the joystick once
+    let hintSeen = false;
+    try { hintSeen = localStorage.getItem("zooJoystickUsed") === "1"; } catch (err) { /* private mode: just show it */ }
+    const hint = document.createElement("div");
+    hint.textContent = "Drag to move";
+    hint.style.cssText =
+        "position:absolute; top:100%; left:50%; transform:translateX(-50%); margin-top:9px; pointer-events:none;" +
+        "white-space:nowrap; padding:3px 9px; border-radius:999px;" +
+        "font:800 11px 'Trebuchet MS', 'Segoe UI', system-ui, sans-serif; letter-spacing:0.03em;" +
+        "color:#fff4d6; background:rgba(78,49,25,0.9); border:2px solid #fff4d6;" +
+        "box-shadow:0 2px 6px rgba(0,0,0,0.3); transition:opacity 0.4s ease;" +
+        (hintSeen ? "opacity:0; display:none;" : "");
+    base.appendChild(hint);
+
     document.body.appendChild(base);
+
+    // Size everything from the screen size (called now and on every resize)
+    let maxDist = 0;
+    const popupStyle = document.createElement("style");   // keeps the "You reached ..." popup ABOVE the pad
+    document.head.appendChild(popupStyle);
+
+    function layoutJoystick() {
+        const size = joySize();
+        base.style.width = size + "px";
+        base.style.height = size + "px";
+        const knobSize = Math.round(size * KNOB_SHARE);
+        knob.style.width = knobSize + "px";
+        knob.style.height = knobSize + "px";
+        knob.style.margin = (-knobSize / 2) + "px 0 0 " + (-knobSize / 2) + "px";
+        maxDist = size * TRAVEL_SHARE;
+        hint.style.fontSize = "11px";
+        popupStyle.textContent = touchMode
+            ? `.arrival-popup { bottom: calc(${JOY_BOTTOM + size + 16}px + env(safe-area-inset-bottom, 0px)) !important; }`
+            : "";
+    }
 
     // ---- When is the joystick visible? ----
     // We follow the input the person is REALLY using:
@@ -476,6 +543,7 @@ function createJoystick() {
     function applyJoystickVisibility() {
         base.style.display = touchMode ? "block" : "none";
         if (!touchMode) { joy.x = 0; joy.y = 0; }
+        layoutJoystick();
     }
 
     function setTouchMode(on) {
@@ -503,17 +571,28 @@ function createJoystick() {
     window.matchMedia("(pointer: coarse)").addEventListener?.("change", () => setTouchMode(guessTouchDevice()));
     window.addEventListener("resize", () => {
         if (isPhoneLike()) setTouchMode(true);
+        layoutJoystick();
     });
 
+    // ---- Dragging ----
     let activePointer = null;
+    let centerX = 0, centerY = 0;
+
+    function lightArrows(nx, ny) {                         // the arrow you push toward lights up
+        const amount = { up: Math.max(0, -ny), down: Math.max(0, ny), left: Math.max(0, -nx), right: Math.max(0, nx) };
+        for (const dir in arrowEls) {
+            const v = Math.min(1, amount[dir] * 1.4);
+            arrowEls[dir].style.opacity = String(0.8 + 0.2 * v);
+            arrowEls[dir].style.filter = v > 0.35 ? "drop-shadow(0 0 4px #3f8f4a) brightness(1.15)" : "none";
+        }
+    }
 
     function moveKnob(e) {
-        const rect = base.getBoundingClientRect();
-        let dx = e.clientX - (rect.left + rect.width / 2);
-        let dy = e.clientY - (rect.top + rect.height / 2);
+        let dx = e.clientX - centerX;
+        let dy = e.clientY - centerY;
 
         const dist = Math.hypot(dx, dy);
-        if (dist > maxDist) {                  // keep the knob inside the base
+        if (dist > maxDist) {                  // keep the knob inside the pad
             dx *= maxDist / dist;
             dy *= maxDist / dist;
         }
@@ -523,20 +602,41 @@ function createJoystick() {
         const ny = dy / maxDist;
         if (Math.hypot(nx, ny) < JOY_DEAD_ZONE) {
             joy.x = 0; joy.y = 0;
+            lightArrows(0, 0);
         } else {
             joy.x = nx; joy.y = ny;
+            lightArrows(nx, ny);
         }
     }
 
     function releaseKnob() {
         activePointer = null;
+        knob.style.transition = "transform 0.14s ease-out";     // the knob springs back to the centre
         knob.style.transform = "translate(0px, 0px)";
+        base.style.transform = "none";
+        base.style.opacity = String(IDLE_OPACITY);          // see-through again
+        base.style.cursor = "grab";
         joy.x = 0; joy.y = 0;
+        lightArrows(0, 0);
     }
 
     base.addEventListener("pointerdown", (e) => {
         activePointer = e.pointerId;
         base.setPointerCapture(e.pointerId);
+        const rect = base.getBoundingClientRect();           // measured once, so the knob does not jump while dragging
+        centerX = rect.left + rect.width / 2;
+        centerY = rect.top + rect.height / 2;
+        knob.style.transition = "none";                      // the knob follows the finger without delay
+        base.style.transform = "scale(1.04)";                // the pad grows a little: "you are holding it"
+        base.style.opacity = String(HELD_OPACITY);           // and becomes clearer while it is held
+        base.style.cursor = "grabbing";
+        if (navigator.vibrate) navigator.vibrate(8);         // tiny buzz on phones that support it
+        if (!hintSeen) {                                     // the hint has done its job
+            hintSeen = true;
+            hint.style.opacity = "0";
+            setTimeout(() => { hint.style.display = "none"; }, 450);
+            try { localStorage.setItem("zooJoystickUsed", "1"); } catch (err) { /* ignore */ }
+        }
         moveKnob(e);
         e.preventDefault();
     });
@@ -545,6 +645,8 @@ function createJoystick() {
     });
     base.addEventListener("pointerup", releaseKnob);
     base.addEventListener("pointercancel", releaseKnob);
+    base.addEventListener("lostpointercapture", releaseKnob);
+    base.addEventListener("contextmenu", (e) => e.preventDefault());   // no long-press menu on the pad
 }
 
 createJoystick();
