@@ -29,7 +29,7 @@ const GROUT_WIDTH = 1.2;           // thickness of the grout lines
 const GROUT_COLOR = "#c9b891";     // grout: only slightly darker than the tiles
 const TILE_BASE = { r: 224, g: 207, b: 169 };   // same beige as PATH_COLOR
 const TILE_VARIATION = 7;          // +/- brightness change per tile (keep small!)
-const TILE_RESOLUTION = 6;         // pixels per map unit in the tile image (keeps it sharp)
+const TILE_RESOLUTION = 3;         // pixels per map unit in the tile image (keeps it sharp)
 
 // ---------- Brick settings for the ticket path ----------
 const BRICK_W = 20;                // width of one brick
@@ -282,7 +282,7 @@ const brickPattern = createBrickPattern();
 function resizeCanvas() {
     const screenWidth = window.innerWidth;
     const screenHeight = window.innerHeight;
-    const pixelRatio = window.devicePixelRatio || 1;
+    const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
 
     // Canvas covers the entire screen
     canvas.style.width = `${screenWidth}px`;
@@ -2226,7 +2226,7 @@ function buildOutside(screenW, screenH, pixelRatio) {
 }
 
 function drawOutside() {
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const t = performance.now() / 1000;
 
     ctx.save();
@@ -2348,7 +2348,16 @@ function drawMap() {
 // Animation loop: move things, then redraw
 let lastTime = null;
 
+const FRAME_MS = 1000 / 30;           // draw at most 30 frames per second (smoother on phones, less heat)
+let lastDraw = 0;
 function animateRoute(now) {
+    const cardOpen = typeof isPlaceCardOpen === "function" && isPlaceCardOpen();
+    if (document.hidden || cardOpen || now - lastDraw < FRAME_MS) {
+        if (cardOpen || document.hidden) lastTime = null;   // stop drawing while a card is open or the tab is hidden
+        requestAnimationFrame(animateRoute);
+        return;
+    }
+    lastDraw = now;
     // dt = seconds since the last frame (capped, so a paused tab doesn't make a big jump)
     const dt = lastTime === null ? 0 : Math.min((now - lastTime) / 1000, 0.1);
     lastTime = now;

@@ -36,7 +36,7 @@ const CURB_COLOR = "#d6c7a0";      // the lighter stone border along both edges 
 const CURB_WIDTH = 4.5;            // thickness of that border (each side)
 const TILE_BASE = { r: 224, g: 207, b: 169 };   // same beige as PATH_COLOR
 const TILE_VARIATION = 8;          // +/- brightness change per tile (keep small!)
-const TILE_RESOLUTION = 6;         // pixels per map unit in the tile image (keeps it sharp)
+const TILE_RESOLUTION = 3;         // pixels per map unit in the tile image (keeps it sharp)
 
 // Soft shadow around the walkway
 const SHADOW_COLOR = "rgba(0, 0, 0, 0.08)";     // one soft shadow layer
@@ -1839,8 +1839,6 @@ function drawBirdSpots() {
         };
 
         ctx.save();
-        ctx.shadowColor = "rgba(0, 0, 0, 0.35)";
-        ctx.shadowBlur = 7;
         ctx.shadowOffsetY = 2;
         body();
         ctx.fillStyle = LABEL_COLOR;
@@ -1899,6 +1897,9 @@ function updateBirdPopup() {
     if (found === birdNearby) return;              // nothing changed
     birdNearby = found;
     if (found) {
+        // start loading the photo and sound now, so the card opens instantly
+        const pre = (typeof aviaryBirds !== "undefined") && aviaryBirds.find(function (x) { return x.id === found; });
+        if (pre) { if (pre.photo) new Image().src = pre.photo; if (pre.audio) fetch(pre.audio).catch(function () {}); }
         birdPopup.querySelector(".arrival-popup-text").textContent = "You reached " + birdName(found);
         birdPopup.style.display = "flex";
     } else {
@@ -2139,6 +2140,7 @@ function drawTrees() {
 // Each butterfly drifts round a centre point in a lazy figure-eight and flaps its wings.
 // cx, cy = centre, ax, ay = how far it drifts sideways / up and down. All four are SKETCH pixels (same numbers as
 // canvaPoint). Add a line = one more butterfly, delete a line = one less.
+const BUTTERFLY_SIZE = 0.55;     // size of every butterfly: 1 = old size, 0.55 = about half. Lower = smaller.
 const butterflies = [
     { cx: 935,  cy: 380, ax: 60, ay: 26, speed: 0.55, color: "#ffb300" },    // over the pond
     { cx: 880,  cy: 330, ax: 40, ay: 20, speed: 0.62, color: "#ff7ab6" },    // inside the loop
@@ -2150,7 +2152,7 @@ const butterflies = [
 
 function drawButterflies() {
     const t = performance.now() / 1000;
-    const s = Math.max(0.8, Math.min(1.3, viewScale * 1.2));      // a little smaller on a small phone screen
+    const s = BUTTERFLY_SIZE * Math.max(0.8, Math.min(1.3, viewScale * 1.2));      // a little smaller on a small phone screen
 
     ctx.save();
     ctx.setTransform(pixelRatioNow, 0, 0, pixelRatioNow, 0, 0);
@@ -2227,7 +2229,7 @@ let viewScale = 1;          // map unit -> screen pixel
 let viewRotated = false;    // true = the map is shown turned a quarter turn
 
 function resizeCanvas() {
-    const pixelRatio = window.devicePixelRatio || 1;
+    const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
     const screenWidth = canvas.clientWidth;
     const screenHeight = canvas.clientHeight;
 
@@ -2300,7 +2302,16 @@ function resizeCanvas() {
 // Animation loop: move things, then redraw
 let lastTime = null;
 
+const FRAME_MS = 1000 / 30;           // draw at most 30 frames per second (smoother on phones, less heat)
+let lastDraw = 0;
 function animateRoute(now) {
+    const cardOpen = typeof isBirdCardOpen === "function" && isBirdCardOpen();
+    if (document.hidden || cardOpen || now - lastDraw < FRAME_MS) {
+        if (cardOpen || document.hidden) lastTime = null;   // stop drawing while a card is open or the tab is hidden
+        requestAnimationFrame(animateRoute);
+        return;
+    }
+    lastDraw = now;
     // dt = seconds since the last frame (capped, so a paused tab doesn't make a big jump)
     const dt = lastTime === null ? 0 : Math.min((now - lastTime) / 1000, 0.1);
     lastTime = now;

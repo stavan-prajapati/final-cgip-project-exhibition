@@ -31,7 +31,7 @@ const CURB_COLOR = "#d6c7a0";      // the lighter stone border along both edges 
 const CURB_WIDTH = 4.5;            // thickness of that border (each side)
 const TILE_BASE = { r: 224, g: 207, b: 169 };   // same beige as PATH_COLOR
 const TILE_VARIATION = 8;          // +/- brightness change per tile (keep small!)
-const TILE_RESOLUTION = 6;         // pixels per map unit in the tile image (keeps it sharp)
+const TILE_RESOLUTION = 3;         // pixels per map unit in the tile image (keeps it sharp)
 
 // Soft shadow around the walkway
 const SHADOW_COLOR = "rgba(0, 0, 0, 0.08)";     // one soft shadow layer
@@ -1835,6 +1835,9 @@ function updateAnimalPopup() {
     if (found === animalNearby) return;            // nothing changed
     animalNearby = found;
     if (found) {
+        // start loading the photo and sound now, so the card opens instantly
+        const pre = (typeof zooAnimals !== "undefined") && zooAnimals.find(function (x) { return x.id === found; });
+        if (pre) { if (pre.photo) new Image().src = pre.photo; if (pre.audio) fetch(pre.audio).catch(function () {}); }
         animalPopup.querySelector(".arrival-popup-text").textContent = "You reached " + animalName(found);
         animalPopup.style.display = "flex";
     } else {
@@ -1987,7 +1990,7 @@ let viewScale = 1;          // map unit -> screen pixel
 let viewRotated = false;    // true = the map is shown turned a quarter turn
 
 function resizeCanvas() {
-    const pixelRatio = window.devicePixelRatio || 1;
+    const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
     const screenWidth = canvas.clientWidth;
     const screenHeight = canvas.clientHeight;
 
@@ -2057,7 +2060,16 @@ function resizeCanvas() {
 // Animation loop: move things, then redraw
 let lastTime = null;
 
+const FRAME_MS = 1000 / 30;           // draw at most 30 frames per second (smoother on phones, less heat)
+let lastDraw = 0;
 function animateRoute(now) {
+    const cardOpen = typeof isAnimalCardOpen === "function" && isAnimalCardOpen();
+    if (document.hidden || cardOpen || now - lastDraw < FRAME_MS) {
+        if (cardOpen || document.hidden) lastTime = null;   // stop drawing while a card is open or the tab is hidden
+        requestAnimationFrame(animateRoute);
+        return;
+    }
+    lastDraw = now;
     // dt = seconds since the last frame (capped, so a paused tab doesn't make a big jump)
     const dt = lastTime === null ? 0 : Math.min((now - lastTime) / 1000, 0.1);
     lastTime = now;

@@ -41,9 +41,7 @@ canvas {
 
     padding: 24px;
 
-    background: rgba(12, 24, 18, 0.72);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    background: rgba(12, 24, 18, 0.85);
 
     opacity: 0;
     visibility: hidden;
