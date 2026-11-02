@@ -1323,6 +1323,138 @@ function drawDottedRoute(routes) {
     ctx.restore();
 }
 
+// ======================================================================
+// PONDS (inside the two curved walks) + a FEW ROCKS
+// ======================================================================
+// A pond lies on the grass in the middle of each curved walk (dome 1 and dome 2), under the
+// water birds. It is drawn once into the base layer (under the paths and the bird markers).
+//
+// TO MOVE / RESIZE A POND: change "center" and "rx / ry". They are SKETCH pixels, the same numbers as
+//   canvaPoint(x, y), so the pond is stretched together with the map.
+// TO CHANGE THE ROCKS: every rock has an "angle" (degrees round the pond: 0 = east, 90 = south, 180 = west,
+//   270 = north), "out" (1 = on the water's edge, bigger = further out on the bank) and a "size".
+//   Delete a line = one rock less. Delete a whole pond block = no pond there.
+const PONDS = [
+    {   // dome 2 (the swans)
+        center: [868, 399], rx: 76, ry: 27, seed: 3,
+        rocks: [
+            { angle: 200, out: 1.04, size: 9 },
+            { angle: 150, out: 1.08, size: 6 },
+            { angle: 345, out: 1.05, size: 7 }
+        ]
+    },
+    {   // dome 1 (ducks and pelican)
+        center: [520, 318], rx: 60, ry: 25, seed: 8,
+        rocks: [
+            { angle: 195, out: 1.05, size: 8 },
+            { angle: 20,  out: 1.06, size: 6 }
+        ]
+    }
+];
+
+const POND_WATER_EDGE = "#2f86b5";      // deeper water at the edge
+const POND_WATER_MID  = "#58b4d8";      // lighter water in the middle
+const POND_SHORE      = "#d9c99a";      // sandy edge
+const POND_BANK       = "#6f9f5c";      // darker, wet grass around the pond
+const POND_WOBBLE = 0.09;               // how uneven the shore is (0 = perfect oval)
+
+// The outline of a pond (k = 1 the water, bigger = the shore / the bank), in MAP units
+function pondOutline(pond, k) {
+    const pts = [], n = 18;
+    for (let i = 0; i < n; i++) {
+        const a = i / n * Math.PI * 2;
+        const w = 1 + POND_WOBBLE * Math.sin(3 * a + pond.seed) + POND_WOBBLE * 0.55 * Math.sin(5 * a + pond.seed * 2);
+        pts.push(canvaPoint(pond.center[0] + Math.cos(a) * pond.rx * w * k,
+                            pond.center[1] + Math.sin(a) * pond.ry * w * k));
+    }
+    return pts;
+}
+
+// Trace a smooth closed curve through the points
+function traceSmoothClosed(pts) {
+    const n = pts.length;
+    const mid = function (a, b) { return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; };
+    const start = mid(pts[n - 1], pts[0]);
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y);
+    for (let i = 0; i < n; i++) {
+        const m = mid(pts[i], pts[(i + 1) % n]);
+        ctx.quadraticCurveTo(pts[i].x, pts[i].y, m.x, m.y);
+    }
+    ctx.closePath();
+}
+
+function drawRock(x, y, size, seed) {
+    const n = 8, pts = [];
+    for (let i = 0; i < n; i++) {
+        const a = i / n * Math.PI * 2;
+        const r = size * (0.78 + 0.35 * pseudoRandom(seed * 7 + i));
+        pts.push({ x: x + Math.cos(a) * r * 1.2, y: y + Math.sin(a) * r * 0.9 });
+    }
+    // shadow on the ground
+    ctx.fillStyle = "rgba(0, 0, 0, 0.22)";
+    ctx.beginPath(); ctx.ellipse(x + size * 0.15, y + size * 0.75, size * 1.25, size * 0.4, 0, 0, Math.PI * 2); ctx.fill();
+    // the stone
+    traceSmoothClosed(pts);
+    const g = ctx.createLinearGradient(x - size, y - size, x + size, y + size);
+    g.addColorStop(0, "#b9bcb5"); g.addColorStop(1, "#7d807a");
+    ctx.fillStyle = g; ctx.fill();
+    ctx.strokeStyle = "#5d605b"; ctx.lineWidth = 1.6; ctx.stroke();
+    // a small light spot on top
+    ctx.fillStyle = "rgba(255, 255, 255, 0.35)";
+    ctx.beginPath(); ctx.ellipse(x - size * 0.3, y - size * 0.3, size * 0.4, size * 0.22, -0.4, 0, Math.PI * 2); ctx.fill();
+}
+
+function drawPonds() {
+    ctx.save();
+    for (const pond of PONDS) {
+        const c = canvaPoint(pond.center[0], pond.center[1]);
+
+        // wet bank, then the sandy shore
+        traceSmoothClosed(pondOutline(pond, 1.2));
+        ctx.fillStyle = POND_BANK; ctx.globalAlpha = 0.55; ctx.fill(); ctx.globalAlpha = 1;
+        traceSmoothClosed(pondOutline(pond, 1.09));
+        ctx.fillStyle = POND_SHORE; ctx.fill();
+
+        // the water: lighter in the middle, deeper at the edge
+        const rMap = Math.max(pond.rx * CANVA_SCALE, pond.ry * CANVA_SCALE) * 1.2;
+        const water = ctx.createRadialGradient(c.x, c.y, 2, c.x, c.y, rMap);
+        water.addColorStop(0, POND_WATER_MID);
+        water.addColorStop(1, POND_WATER_EDGE);
+        traceSmoothClosed(pondOutline(pond, 1));
+        ctx.fillStyle = water; ctx.fill();
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.35)"; ctx.lineWidth = 2; ctx.stroke();
+
+        // a few soft ripples and a glint, inside the water only
+        ctx.save();
+        traceSmoothClosed(pondOutline(pond, 1));
+        ctx.clip();
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.30)"; ctx.lineWidth = 1.6; ctx.lineCap = "round";
+        const rip = [[-0.35, -0.10, 0.28], [0.25, 0.22, 0.22], [0.45, -0.25, 0.16]];
+        for (const r of rip) {
+            ctx.beginPath();
+            ctx.ellipse(c.x + r[0] * pond.rx * CANVA_SCALE, c.y + r[1] * pond.ry * CANVA_SCALE,
+                        r[2] * pond.rx * CANVA_SCALE * 0.6, r[2] * pond.ry * CANVA_SCALE * 0.6, 0, 0.2, Math.PI * 1.2);
+            ctx.stroke();
+        }
+        ctx.fillStyle = "rgba(255, 255, 255, 0.22)";
+        ctx.beginPath();
+        ctx.ellipse(c.x - pond.rx * CANVA_SCALE * 0.4, c.y - pond.ry * CANVA_SCALE * 0.45,
+                    pond.rx * CANVA_SCALE * 0.22, pond.ry * CANVA_SCALE * 0.1, -0.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        // the few rocks on the edge
+        pond.rocks.forEach(function (rock, i) {
+            const a = rock.angle * Math.PI / 180;
+            const p = canvaPoint(pond.center[0] + Math.cos(a) * pond.rx * rock.out,
+                                 pond.center[1] + Math.sin(a) * pond.ry * rock.out);
+            drawRock(p.x, p.y, rock.size * CANVA_SCALE * 0.8, pond.seed * 10 + i);
+        });
+    }
+    ctx.restore();
+}
+
 // The parts of the map that never move are drawn ONCE into two hidden pictures (layers)
 // and only copied to the screen every frame. This keeps the map smooth on a phone.
 let baseLayer = null;      // grass, walkways, wooden deck, railings
@@ -1344,6 +1476,7 @@ function makeLayer(drawIt) {
 function buildLayers() {
     baseLayer = makeLayer(function () {
         drawGrass();
+        drawPonds();                                           // ponds + a few rocks on the grass (under the paths)
         drawPaths();                                           // shadows + tiled walkways (the entry stretch and the last stretch of dome 2 stay tiles)
         for (const line of deckLines) drawDeckPlanks(line);    // wooden deck of dome 1 and dome 2
         for (const line of deckLines) { drawDeckEnds(line); drawDeckRails(line); }
