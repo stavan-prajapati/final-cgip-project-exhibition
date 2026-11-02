@@ -287,7 +287,7 @@ const walkways = [
     //    Up the entrance (bottom), the short diagonal into the south-east corner of dome 1,
     //    then round dome 1 (north, west, south) and east along its bottom edge.
     //    It ends under the WEST end of the bridge.
-    curvedLine([[700, 578], [700, 468], [655, 410], [655, 298], [588, 248], [428, 248],
+    curvedLine([[700, 619], [700, 468], [655, 410], [655, 298], [588, 248], [428, 248],
                 [375, 315], [375, 380], [455, 405], [540, 405]]),
 
     // 1. DOME 2 + its tail.
@@ -355,6 +355,11 @@ const view = (function () {
 // false = the map always stays upright, on every device.
 const ROTATE_ON_PORTRAIT = true;
 
+// On a phone the map is lifted UP and moved LEFT by these many screen pixels (never past the frame / the sign),
+// so the joystick at the bottom right has more room. 0 = no shift.
+const MAP_SHIFT_UP = 60;
+const MAP_SHIFT_LEFT = 55;
+
 // ======================================================================
 // WALKABLE AREA: ground level and bridge level
 // ======================================================================
@@ -421,7 +426,7 @@ function inDoorOfWay(way, px, py) {
 // ======================================================================
 
 // ---------- Visitor pointer settings (same as the main map) ----------
-const VISITOR_START = canvaPoint(700, 560);   // ENTRY POINT: the bottom of the entrance path
+const VISITOR_START = canvaPoint(700, 603);   // ENTRY POINT: the bottom of the entrance path (the path starts at y = 619)
 const VISITOR_RADIUS = 15;                    // size of the pointer (also its collision circle)
 const VISITOR_SCREEN_SPEED = 130;             // how fast the pointer moves ON THE SCREEN (pixels per second), the same on every device
 const VISITOR_COLOR = "#168bff";
@@ -514,8 +519,8 @@ const JOY_SIZE = 110;            // BIGGEST size of the joystick pad. Bigger num
 const JOY_MIN_SIZE = 84;         // SMALLEST size, used on small phones.
 const JOY_SCREEN_SHARE = 0.27;   // the pad is this share of the screen's shorter side (then kept between MIN and SIZE).
 const JOY_SIDE = "right";        // which side of the screen the joystick sits on: "right" or "left".
-const JOY_EDGE = 14;             // gap between the joystick and that side of the screen. Bigger = further from the edge.
-const JOY_BOTTOM = 36;           // gap between the joystick and the bottom of the screen. Bigger = higher up.
+const JOY_EDGE = 34;             // gap between the joystick and that side of the screen. Bigger = further from the edge.
+const JOY_BOTTOM = 72;           // gap between the joystick and the bottom of the screen. Bigger = higher up.
 const JOY_IDLE_OPACITY = 0.5;    // how see-through it is while nobody touches it (0 = invisible, 1 = solid).
 
 // The "You reached ..." popup on a phone: it sits at the LOWER side of the screen, next to the joystick.
@@ -2237,7 +2242,7 @@ function resizeCanvas() {
     }
     const reserveBottom = 0;
     const fitH = freeH - reserveTop - reserveBottom;                    // height the map may use
-    const fitCenterY = margin + reserveTop + fitH / 2;                  // where its middle sits on the screen
+    let fitCenterY = margin + reserveTop + fitH / 2;                  // where its middle sits on the screen
 
     // The board: the whole screen minus the margin. The wooden frame is drawn in that margin.
     pixelRatioNow = pixelRatio;
@@ -2252,6 +2257,19 @@ function resizeCanvas() {
     viewRotated = ROTATE_ON_PORTRAIT && turnedScale > uprightScale * 1.15;
     viewScale = viewRotated ? turnedScale : uprightScale;
 
+    // On a phone the whole map is lifted UP and moved to the LEFT (MAP_SHIFT_UP / MAP_SHIFT_LEFT pixels), which leaves
+    // free room for the joystick at the bottom right. It never goes further than the free space around the
+    // map allows, so nothing is cut off by the frame or hidden behind the sign.
+    let centerX = screenWidth / 2;
+    if (narrow) {
+        const boxW = viewScale * (viewRotated ? view.h : view.w);
+        const boxH = viewScale * (viewRotated ? view.w : view.h);
+        const slackUp = (fitCenterY - boxH / 2) - (margin + reserveTop);
+        const slackLeft = (centerX - boxW / 2) - margin + 24;   // may use a little of the grass border of the view
+        fitCenterY -= Math.max(0, Math.min(MAP_SHIFT_UP, slackUp));
+        centerX -= Math.max(0, Math.min(MAP_SHIFT_LEFT, slackLeft));
+    }
+
     const s = viewScale;
     const cx = view.x + view.w / 2;       // center of the map's view box
     const cy = view.y + view.h / 2;
@@ -2261,14 +2279,14 @@ function resizeCanvas() {
         viewMatrix = [
             0, pixelRatio * s,
             -pixelRatio * s, 0,
-            pixelRatio * (screenWidth / 2 + s * cy),
+            pixelRatio * (centerX + s * cy),
             pixelRatio * (fitCenterY - s * cx)
         ];
     } else {
         viewMatrix = [
             pixelRatio * s, 0,
             0, pixelRatio * s,
-            pixelRatio * (screenWidth / 2 - s * cx),
+            pixelRatio * (centerX - s * cx),
             pixelRatio * (fitCenterY - s * cy)
         ];
     }

@@ -7,22 +7,19 @@
     <link rel="stylesheet" href="zoo.css">
 </head>
 <body>
-    <header class="zoo-bar">
-        <a class="zoo-back" href="index.html?from=zoo">&larr; Back to Zoo Map</a>
-        <div class="zoo-bar-title">
-            <h1>Zoo</h1>
-            <p>Kamatibaug Zoo Navigation Guide</p>
+    <!-- The zoo map is drawn on this canvas by zoo.js (full screen, inside a wooden frame) -->
+    <canvas id="zooSectionMap"></canvas>
+
+    <!-- Wooden hanging sign with the title (same as the main map, the aviary and the cages) -->
+    <header class="zoo-title">
+        <div class="zoo-title-icon" aria-hidden="true">&#128062;</div>
+        <div class="zoo-title-text">
+            <h1>Kamatibaug Zoo</h1>
+            <p>Navigation Guide</p>
         </div>
     </header>
 
-    <main class="zoo-stage">
-        <!-- The zoo map will be drawn on this canvas by zoo.js -->
-        <canvas id="zooSectionMap"></canvas>
-        <div class="zoo-soon">
-            <h2>Zoo map coming soon</h2>
-            <p>This is where the zoo map will open.</p>
-        </div>
-    </main>
+    <a class="zoo-back" href="index.html?from=zoo">&larr; Back to Zoo Map</a>
 
     <script src="zoo.js"></script>
 </body>
