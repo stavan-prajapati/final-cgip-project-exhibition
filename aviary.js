@@ -1409,7 +1409,7 @@ const birdSpots = [
 // ======================================================================
 // "CAGED BIRDS" MARKER (end of the walk)
 // ======================================================================
-// A round badge like the place badges of the main map, at the end of dome 2's tail.
+// A wooden SIGN BOARD (post + plank reading "CAGED BIRDS") beside the end of dome 2's tail.
 // When the visitor reaches it, a popup asks "Visit the Caged Birds?". The button opens cages.html
 // (the caged birds have their own page; that page is made later).
 const CAGE_LINK = { page: "cages.html", question: "Visit the Caged Birds?", button: "Visit Cages" };
@@ -1814,104 +1814,160 @@ function updateBirdPopup() {
     }
 }
 
-// ---------- "Caged Birds" marker: icon, badge, name ----------
-// A small bird cage, drawn with white lines (designed for a badge of radius 26, like the icons of the main map).
-function drawCageIcon() {
-    ctx.strokeStyle = "#fff";
-    ctx.fillStyle = "#fff";
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
+// ---------- "Caged Birds" marker: a wooden SIGN BOARD ----------
+// A signpost planted on the grass beside the end of the walk: a wooden post with a plank that reads
+// "CAGED BIRDS" and an arrow in the walking direction. Same wood as the hanging title sign.
+// Drawn in SCREEN pixels, so it stays upright and the same size on a turned phone map.
+const SIGN_TEXT = "CAGED BIRDS";
 
-    // hanging ring
-    ctx.lineWidth = 2.2;
-    ctx.beginPath(); ctx.arc(0, -20, 2.8, 0, Math.PI * 2); ctx.stroke();
-
-    // dome
-    ctx.lineWidth = 2.4;
-    ctx.beginPath();
-    ctx.moveTo(-13, 13);
-    ctx.lineTo(-13, -2);
-    ctx.quadraticCurveTo(-13, -16, 0, -16);
-    ctx.quadraticCurveTo(13, -16, 13, -2);
-    ctx.lineTo(13, 13);
-    ctx.stroke();
-
-    // bars
-    ctx.lineWidth = 1.8;
-    for (const x of [-6.5, 0, 6.5]) {
-        ctx.beginPath(); ctx.moveTo(x, -15); ctx.lineTo(x, 13); ctx.stroke();
-    }
-
-    // base
-    ctx.fillRect(-15, 13, 30, 4.5);
-
-    // the little bird inside
-    ctx.fillStyle = "#ffd54f";
-    ctx.beginPath(); ctx.arc(0, 6, 3.6, 0, Math.PI * 2); ctx.fill();
-}
-
-// Drawn in SCREEN pixels (like the bird markers), so it stays upright and the same size on a turned phone map.
 function drawCageMarker() {
     const t = performance.now() / 1000;
-    const c = mapToScreen(cageMarker.point);
-    const R = Math.max(14, Math.min(28, viewScale * 36));
-    const bob = Math.sin(t * 2.2) * 2;
-    const phase = (t * 0.7) % 1;
+    const c = mapToScreen(cageMarker.point);                 // the end of the walk (where the visitor must stand)
+    const S = Math.max(0.8, Math.min(1.15, viewScale * 1.2)); // sign size follows the screen
     const near = Math.hypot(visitor.x - cageMarker.point.x, visitor.y - cageMarker.point.y) <= cageMarker.trigger;
+    const phase = (t * 0.7) % 1;
+
+    // which way does the walk go at its end? (on the screen, so it also works on a turned phone map)
+    const wp = walkways[1];
+    const before = mapToScreen(wp[Math.max(0, wp.length - 8)]);
+    let dx = c.x - before.x, dy = c.y - before.y;
+    const dl = Math.hypot(dx, dy) || 1;
+    dx /= dl; dy /= dl;
 
     ctx.save();
     ctx.setTransform(pixelRatioNow, 0, 0, pixelRatioNow, 0, 0);
 
-    // pulsing ring
-    ctx.strokeStyle = cageMarker.color;
-    ctx.globalAlpha = (1 - phase) * 0.5;
+    // soft pulsing ring on the end of the walk: "stand here"
+    ctx.strokeStyle = "#ffd54f";
+    ctx.globalAlpha = (1 - phase) * 0.7;
     ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(c.x, c.y + bob, R + 3 + phase * R * 0.6, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(c.x, c.y, 10 * S + phase * 20 * S, 0, Math.PI * 2); ctx.stroke();
     ctx.globalAlpha = 1;
+    ctx.fillStyle = "rgba(255, 213, 79, 0.55)";
+    ctx.beginPath(); ctx.arc(c.x, c.y, 6 * S, 0, Math.PI * 2); ctx.fill();
 
-    // golden glow when the visitor has reached it
-    if (near) {
-        ctx.strokeStyle = "#ffd54f";
-        ctx.lineWidth = 4;
-        ctx.beginPath(); ctx.arc(c.x, c.y + bob, R + 7, 0, Math.PI * 2); ctx.stroke();
+    // measure the plank
+    const fontPx = Math.round(13 * S);
+    ctx.font = "800 " + fontPx + "px 'Trebuchet MS', 'Segoe UI', sans-serif";
+    const textW = ctx.measureText(SIGN_TEXT).width;
+    const arrowW = 16 * S;
+    const bw = textW + arrowW + 30 * S;                       // plank width
+    const bh = 30 * S;                                        // plank height
+    const postW = 7 * S;
+    const postH = 62 * S;                                     // the post stands this high
+
+    // where does the post stand? It tries the spots around the end of the walk (beside it, in front of it) with the
+    // plank to the left or to the right, and takes the one that keeps the plank on the grass and inside the screen.
+    // (worked out once per screen size, not every frame)
+    const key = viewMatrix.join(",") + "|" + board.w + "|" + board.h + "|" + S.toFixed(2);
+    if (!drawCageMarker.cache || drawCageMarker.cache.key !== key) {
+        const gap = 38 * S;
+        const px0 = [], offsets = [[-dy, dx, 1], [dy, -dx, 1], [dx, dy, 0.9], [-dx, -dy, 0.9]];
+        let best = null;
+        for (const o of offsets) {
+            for (const sd of [1, -1]) {
+                const px = c.x + o[0] * gap * o[2], py = c.y + o[1] * gap * o[2];
+                const topY = py + 16 * S - postH;
+                const rx = sd === 1 ? px : px - bw, ry = topY, rw = bw, rh = bh;
+                let score = 0;
+                if (rx < board.x + 8 || rx + rw > board.x + board.w - 8 || ry < board.y + 8 || py + 20 * S > board.y + board.h - 8) score += 5000;
+                if (c.x > rx - 14 && c.x < rx + rw + 14 && c.y > ry - 14 && c.y < ry + rh + 14) score += 800;     // would hide the end of the walk
+                let hits = 0, total = 0;
+                for (let i = 0; i <= 8; i++) for (let j = 0; j <= 2; j++) {
+                    const m = screenToMap(rx + rw * i / 8, ry + rh * j / 2);
+                    total++;
+                    if (pointOnBridge(m.x, m.y) || pointOnWay(0, m.x, m.y) || pointOnWay(1, m.x, m.y)) hits++;
+                }
+                score += 300 * hits / total;
+                if (!best || score < best.score) best = { score: score, px: px, py: py, side: sd };
+            }
+        }
+        drawCageMarker.cache = { key: key, px: best.px, py: best.py, side: best.side };
+    }
+    const spot = drawCageMarker.cache;
+    const side = spot.side;                                   // 1 = plank to the right of the post
+    const px = spot.px;                                       // post centre
+    const baseY = spot.py + 16 * S;                           // where the post enters the ground
+    const topY = baseY - postH;                               // top of the post
+
+    // ground shadow
+    ctx.fillStyle = "rgba(0, 0, 0, 0.25)";
+    ctx.beginPath(); ctx.ellipse(px, baseY + 1, 13 * S, 4.5 * S, 0, 0, Math.PI * 2); ctx.fill();
+
+    // the post
+    const postGrad = ctx.createLinearGradient(px - postW / 2, 0, px + postW / 2, 0);
+    postGrad.addColorStop(0, "#7a4d28"); postGrad.addColorStop(0.5, "#9a6a3c"); postGrad.addColorStop(1, "#6f4524");
+    ctx.fillStyle = postGrad;
+    roundedRect(px - postW / 2, topY - 3 * S, postW, postH + 3 * S, 2.5 * S); ctx.fill();
+    ctx.strokeStyle = "#4e3119"; ctx.lineWidth = 1.6; ctx.stroke();
+
+    // the plank sways a tiny bit around the post
+    ctx.translate(px, topY + bh / 2);
+    ctx.rotate(Math.sin(t * 1.4) * 0.012);
+    const x0 = side === 1 ? 0 : -bw;                          // plank left edge (relative to the post)
+    const y0 = -bh / 2;
+
+    ctx.fillStyle = "rgba(0, 0, 0, 0.28)";
+    roundedRect(x0, y0 + 3, bw, bh, 7 * S); ctx.fill();
+
+    if (near) {                                               // golden glow when the visitor has reached the end
+        ctx.save();
+        ctx.shadowColor = "#ffd54f"; ctx.shadowBlur = 14;
+        ctx.fillStyle = "#ffd54f";
+        roundedRect(x0 - 3, y0 - 3, bw + 6, bh + 6, 9 * S); ctx.fill();
+        ctx.restore();
     }
 
-    // soft shadow, white ring, colored badge
-    ctx.fillStyle = "rgba(0, 0, 0, 0.25)";
-    ctx.beginPath(); ctx.arc(c.x, c.y + bob + 3, R + 3, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "#fff";
-    ctx.beginPath(); ctx.arc(c.x, c.y + bob, R + 3, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = cageMarker.color;
-    ctx.beginPath(); ctx.arc(c.x, c.y + bob, R, 0, Math.PI * 2); ctx.fill();
+    const wood = ctx.createLinearGradient(0, y0, 0, y0 + bh);
+    wood.addColorStop(0, "#a8733f"); wood.addColorStop(1, "#6f4524");
+    ctx.fillStyle = wood;
+    roundedRect(x0, y0, bw, bh, 7 * S); ctx.fill();
 
+    // wood planks: thin dark lines
     ctx.save();
-    ctx.translate(c.x, c.y + bob);
-    ctx.scale(R / 26, R / 26);
-    drawCageIcon();
+    roundedRect(x0, y0, bw, bh, 7 * S); ctx.clip();
+    ctx.fillStyle = "rgba(0, 0, 0, 0.09)";
+    for (let x = x0 + 22 * S; x < x0 + bw; x += 54) ctx.fillRect(x, y0, 2, bh);
+    ctx.fillStyle = "rgba(255, 255, 255, 0.18)";
+    ctx.fillRect(x0, y0 + 1, bw, 2);
     ctx.restore();
 
-    // name under the badge: white label with a colored border, two short lines
-    const lines = cageMarker.name.split(" ");
-    const fontPx = Math.round(Math.max(11, Math.min(15, R * 0.62)));
-    const lineH = Math.round(fontPx * 1.2);
-    ctx.font = "700 " + fontPx + "px 'Trebuchet MS', 'Segoe UI', sans-serif";
-    let widest = 0;
-    for (const line of lines) widest = Math.max(widest, ctx.measureText(line).width);
-    const w = widest + 16, h = lines.length * lineH + 8;
-    const lx = c.x - w / 2, ly = c.y + R + 9;
+    ctx.strokeStyle = "#4e3119"; ctx.lineWidth = 2.2;
+    roundedRect(x0, y0, bw, bh, 7 * S); ctx.stroke();
 
-    ctx.fillStyle = "rgba(0, 0, 0, 0.18)";
-    roundedRect(lx, ly + 2, w, h, 8); ctx.fill();
-    roundedRect(lx, ly, w, h, 8);
-    ctx.fillStyle = "#ffffff"; ctx.fill();
-    ctx.strokeStyle = cageMarker.color; ctx.lineWidth = 2; ctx.stroke();
+    // two nails
+    ctx.fillStyle = "#3a2412";
+    const nailX = side === 1 ? x0 + 6 * S : x0 + bw - 6 * S;
+    ctx.beginPath(); ctx.arc(nailX, y0 + bh / 2, 1.8 * S, 0, Math.PI * 2); ctx.fill();
 
-    ctx.fillStyle = "#263238";
-    ctx.textAlign = "center";
+    // the words
+    ctx.font = "800 " + fontPx + "px 'Trebuchet MS', 'Segoe UI', sans-serif";
+    ctx.textAlign = "left";
     ctx.textBaseline = "middle";
-    for (let i = 0; i < lines.length; i++) {
-        ctx.fillText(lines[i], c.x, ly + 4 + lineH * (i + 0.5));
-    }
+    const textX = x0 + 14 * S + (side === 1 ? 4 * S : 0);
+    ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+    ctx.fillText(SIGN_TEXT, textX, 0.5 + 1);
+    ctx.fillStyle = "#fff4d6";
+    ctx.fillText(SIGN_TEXT, textX, 0.5);
+
+    // the arrow: points the way the walk goes (translated back to the screen directions, the plank is nearly upright)
+    const ax = textX + textW + 10 * S, ay = 0;
+    ctx.save();
+    ctx.translate(ax, ay);
+    ctx.rotate(Math.atan2(dy, dx));
+    ctx.fillStyle = "#ffd9a0";
+    ctx.beginPath();
+    ctx.moveTo(7 * S, 0);
+    ctx.lineTo(-1 * S, -6 * S);
+    ctx.lineTo(-1 * S, -2.4 * S);
+    ctx.lineTo(-7 * S, -2.4 * S);
+    ctx.lineTo(-7 * S, 2.4 * S);
+    ctx.lineTo(-1 * S, 2.4 * S);
+    ctx.lineTo(-1 * S, 6 * S);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
     ctx.restore();
 }
 
