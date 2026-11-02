@@ -1961,11 +1961,12 @@ function updateBirdPopup() {
 // "CAGED BIRDS" and an arrow in the walking direction. Same wood as the hanging title sign.
 // Drawn in SCREEN pixels, so it stays upright and the same size on a turned phone map.
 const SIGN_TEXT = "CAGED BIRDS";
+const SIGN_SIZE = 0.72;     // size of the whole sign board: 1 = old size, 0.72 = about a quarter smaller. Lower = smaller.
 
 function drawCageMarker() {
     const t = performance.now() / 1000;
     const c = mapToScreen(cageMarker.point);                 // the end of the walk (where the visitor must stand)
-    const S = Math.max(0.8, Math.min(1.15, viewScale * 1.2)); // sign size follows the screen
+    const S = SIGN_SIZE * Math.max(0.8, Math.min(1.15, viewScale * 1.2)); // sign size follows the screen (and SIGN_SIZE)
     const near = Math.hypot(visitor.x - cageMarker.point.x, visitor.y - cageMarker.point.y) <= cageMarker.trigger;
     const phase = (t * 0.7) % 1;
 
@@ -1989,7 +1990,7 @@ function drawCageMarker() {
     ctx.beginPath(); ctx.arc(c.x, c.y, 6 * S, 0, Math.PI * 2); ctx.fill();
 
     // measure the plank
-    const fontPx = Math.round(13 * S);
+    const fontPx = Math.max(9, Math.round(13 * S));            // never smaller than 9px, so it stays readable
     ctx.font = "800 " + fontPx + "px 'Trebuchet MS', 'Segoe UI', sans-serif";
     const textW = ctx.measureText(SIGN_TEXT).width;
     const arrowW = 16 * S;
