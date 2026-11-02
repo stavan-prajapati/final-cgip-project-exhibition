@@ -166,16 +166,46 @@ canvas {
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3), inset 0 2px 0 rgba(255, 255, 255, 0.2);
 }
 
-/* On narrow screens the back button moves to the bottom left, so it never covers the sign
-   (cages.js also keeps the map clear of both) */
-@media (max-width: 600px) {
+/* ---------- Phones: a SMALL sign (top left) and a SMALL Back button (top right) ----------
+   Both sit at the top, so the "You reached ..." popup can use the lower side of the screen.
+   The map is fitted below them (see resizeCanvas in the .js file), so they never hide the path.
+   Applies to phones held upright (narrow) and on their side (short). */
+@media (max-width: 600px), (max-height: 500px) {
+    .zoo-title {
+        top: calc(6px + env(safe-area-inset-top, 0px));
+        left: calc(6px + env(safe-area-inset-left, 0px));
+        gap: 4px;
+        padding: 2px 7px 3px 4px;
+        border-width: 2px;
+        border-radius: 7px;
+    }
+
+    .zoo-title-icon {
+        width: 18px;
+        height: 18px;
+        font-size: 9px;
+        border-width: 1.5px;
+    }
+
+    .zoo-title-text h1 {
+        font-size: 11px;
+    }
+
+    .zoo-title-text p {
+        margin-top: 1px;
+        font-size: 6px;
+        letter-spacing: 0.1em;
+    }
+
     .zoo-back {
-        top: auto;
-        right: auto;
-        left: calc(14px + env(safe-area-inset-left, 0px));
-        bottom: calc(18px + env(safe-area-inset-bottom, 0px));
-        padding: 9px 13px;
-        font-size: 12px;
+        top: calc(6px + env(safe-area-inset-top, 0px));
+        right: calc(6px + env(safe-area-inset-right, 0px));
+        bottom: auto;
+        left: auto;
+        padding: 6px 10px;
+        font-size: 11px;
+        border-width: 2px;
+        border-radius: 10px;
     }
 }
 

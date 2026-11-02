@@ -407,8 +407,24 @@ window.addEventListener("blur", () => {
     for (const k in keys) keys[k] = false;     // forget keys if the tab loses focus
 });
 
-// ---------- Controls: joystick (mobile + tablet only, bottom right) ----------
-const JOY_SIZE = 110;          // biggest diameter of the joystick pad (screen pixels); smaller screens use less
+// ======================================================================
+// JOYSTICK + POPUP SETTINGS  -  change these numbers to size and place them yourself
+// (all sizes are in SCREEN pixels; save the file and refresh the page to see the change)
+// ======================================================================
+const JOY_SIZE = 110;            // BIGGEST size of the joystick pad. Bigger number = bigger joystick.
+const JOY_MIN_SIZE = 84;         // SMALLEST size, used on small phones.
+const JOY_SCREEN_SHARE = 0.27;   // the pad is this share of the screen's shorter side (then kept between MIN and SIZE).
+const JOY_SIDE = "right";        // which side of the screen the joystick sits on: "right" or "left".
+const JOY_EDGE = 14;             // gap between the joystick and that side of the screen. Bigger = further from the edge.
+const JOY_BOTTOM = 36;           // gap between the joystick and the bottom of the screen. Bigger = higher up.
+const JOY_IDLE_OPACITY = 0.5;    // how see-through it is while nobody touches it (0 = invisible, 1 = solid).
+
+// The "You reached ..." popup on a phone: it sits at the LOWER side of the screen, next to the joystick.
+const POPUP_BOTTOM = 16;         // gap between the popup and the bottom of the screen. Bigger = higher up.
+const POPUP_EDGE = 10;           // gap between the popup and the side of the screen.
+const POPUP_GAP = 10;            // gap between the popup and the joystick.
+
+// ---------- Controls: joystick (mobile + tablet only) ----------
 const JOY_DEAD_ZONE = 0.15;    // tiny thumb movements are ignored
 const joy = { x: 0, y: 0 };    // joystick direction, each from -1 to 1
 
@@ -421,10 +437,9 @@ function createJoystick() {
 
     // The pad size follows the screen: big enough for a thumb, never too big for a small phone.
     function joySize() {
-        return Math.round(Math.max(84, Math.min(JOY_SIZE, Math.min(window.innerWidth, window.innerHeight) * 0.27)));
+        return Math.round(Math.max(JOY_MIN_SIZE, Math.min(JOY_SIZE, Math.min(window.innerWidth, window.innerHeight) * JOY_SCREEN_SHARE)));
     }
-    const JOY_BOTTOM = 36;        // gap below the pad (screen pixels): leaves room for the hint under it
-    const IDLE_OPACITY = 0.5;     // see-through while nobody touches it, so paths and signs stay visible
+    const IDLE_OPACITY = JOY_IDLE_OPACITY;     // see-through while nobody touches it, so paths and signs stay visible
     const HELD_OPACITY = 0.9;     // clearer while it is held
     const KNOB_SHARE = 0.42;      // knob diameter, as a share of the pad
     const TRAVEL_SHARE = 0.32;    // how far the knob may leave the centre, as a share of the pad
@@ -436,7 +451,7 @@ function createJoystick() {
     base.setAttribute("aria-label", "Joystick: drag to move the pointer");
     base.style.cssText =
         "position:fixed; z-index:5; border-radius:50%;" +
-        "right:calc(14px + env(safe-area-inset-right, 0px));" +
+        JOY_SIDE + ":calc(" + JOY_EDGE + "px + env(safe-area-inset-" + JOY_SIDE + ", 0px));" +
         `bottom:calc(${JOY_BOTTOM}px + env(safe-area-inset-bottom, 0px));` +
         "background:radial-gradient(circle at 50% 35%, #fff8e3 0%, #f1dfb4 58%, #c9a56e 100%);" +
         "border:3px solid #6f4524; opacity:" + IDLE_OPACITY + ";" +
@@ -520,8 +535,28 @@ function createJoystick() {
         knob.style.margin = (-knobSize / 2) + "px 0 0 " + (-knobSize / 2) + "px";
         maxDist = size * TRAVEL_SHARE;
         hint.style.fontSize = "11px";
+        // On a phone the "You reached ..." popup sits at the bottom, BESIDE the joystick:
+        // it keeps clear of the joystick's side, and the Back button now lives at the top right.
+        const joyWidth = size + JOY_EDGE + POPUP_GAP;
+        const popupLeft = JOY_SIDE === "left" ? joyWidth : POPUP_EDGE;
+        const popupRight = JOY_SIDE === "left" ? POPUP_EDGE : joyWidth;
         popupStyle.textContent = touchMode
-            ? `.arrival-popup { bottom: calc(${JOY_BOTTOM + size + 16}px + env(safe-area-inset-bottom, 0px)) !important; }`
+            ? `.arrival-popup {
+                   left: calc(${popupLeft}px + env(safe-area-inset-left, 0px)) !important;
+                   right: calc(${popupRight}px + env(safe-area-inset-right, 0px)) !important;
+                   bottom: calc(${POPUP_BOTTOM}px + env(safe-area-inset-bottom, 0px)) !important;
+                   max-width: none !important;
+                   transform: none !important;
+                   flex-wrap: wrap;
+                   justify-content: flex-start;
+                   gap: 6px 10px;
+                   padding: 8px 10px 9px 12px;
+                   font-size: 14px;
+                   animation: popUpLow 0.35s ease both !important;
+               }
+               .arrival-popup-text { flex: 1 1 90px; min-width: 0; }
+               .arrival-popup button { flex: 1 0 100%; padding: 8px 12px; }
+               @keyframes popUpLow { from { opacity: 0; transform: translateY(22px) scale(0.95); } to { opacity: 1; transform: none; } }`
             : "";
     }
 
@@ -1728,9 +1763,15 @@ function resizeCanvas() {
     // On a narrow screen the wooden sign (top) and the Back button (bottom) lie over the board, so the map is
     // fitted into the free space between them. Then nothing on the map can ever hide behind them.
     const titleEl = document.querySelector(".zoo-title"), backEl = document.querySelector(".zoo-back");
-    const narrow = screenWidth <= 600;
-    const reserveTop = (narrow && titleEl) ? Math.max(0, titleEl.offsetTop + titleEl.offsetHeight + 8 - margin) : 0;
-    const reserveBottom = (narrow && backEl) ? Math.max(0, screenHeight - backEl.offsetTop + 40 - margin) : 0;
+    const narrow = screenWidth <= 600 || screenHeight <= 500;           // a phone, upright or on its side
+    // the sign (top left) and the Back button (top right) are both at the top: keep the map below the lower one
+    let reserveTop = 0;
+    if (narrow) {
+        for (const el of [titleEl, backEl]) {
+            if (el) reserveTop = Math.max(reserveTop, el.offsetTop + el.offsetHeight + 8 - margin);
+        }
+    }
+    const reserveBottom = 0;
     const fitH = freeH - reserveTop - reserveBottom;                    // height the map may use
     const fitCenterY = margin + reserveTop + fitH / 2;                  // where its middle sits on the screen
 
