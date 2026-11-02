@@ -154,7 +154,7 @@ const CANVA_ORIGIN = { x: 380, y: 200 };   // this sketch point becomes map (0, 
 // numbers in canvaPoint(x, y). 1 = no stretch, 1.35 = 35% longer. (Make it bigger for even more room.)
 const STRETCH_FROM = 745;
 const STRETCH_TO = 1080;
-const STRETCH = 2.05;
+const STRETCH = 2.35;
 
 function stretchX(x) {
     if (x <= STRETCH_FROM) return x;
@@ -168,8 +168,28 @@ function unstretchX(x) {                                               // the wa
     return x - (STRETCH_TO - STRETCH_FROM) * (STRETCH - 1);
 }
 
+// ---------- Taller right side ----------
+// The same idea, but UP AND DOWN: the part of the map from the top edge (sketch y = 268) to the bottom edge (y = 543)
+// is stretched, so the RIGHT-HAND path is longer and its birds (Ring-necked Pheasant, Golden Pheasant, Zebra Finch,
+// Diamond Dove) get more room. Everything below y = 543 simply moves down. 1 = no stretch, 1.5 = 50% longer.
+const STRETCH_Y_FROM = 268;
+const STRETCH_Y_TO = 543;
+const STRETCH_Y = 1.35;
+
+function stretchY(y) {
+    if (y <= STRETCH_Y_FROM) return y;
+    if (y <= STRETCH_Y_TO) return STRETCH_Y_FROM + (y - STRETCH_Y_FROM) * STRETCH_Y;
+    return y + (STRETCH_Y_TO - STRETCH_Y_FROM) * (STRETCH_Y - 1);
+}
+function unstretchY(y) {                                               // the way back (used by the ?place helper)
+    const end = STRETCH_Y_FROM + (STRETCH_Y_TO - STRETCH_Y_FROM) * STRETCH_Y;
+    if (y <= STRETCH_Y_FROM) return y;
+    if (y <= end) return STRETCH_Y_FROM + (y - STRETCH_Y_FROM) / STRETCH_Y;
+    return y - (STRETCH_Y_TO - STRETCH_Y_FROM) * (STRETCH_Y - 1);
+}
+
 function canvaPoint(x, y) {
-    return { x: (stretchX(x) - CANVA_ORIGIN.x) * CANVA_SCALE, y: (y - CANVA_ORIGIN.y) * CANVA_SCALE };
+    return { x: (stretchX(x) - CANVA_ORIGIN.x) * CANVA_SCALE, y: (stretchY(y) - CANVA_ORIGIN.y) * CANVA_SCALE };
 }
 function canvaLine(list) {
     return list.map(function (p) { return canvaPoint(p[0], p[1]); });
@@ -1380,10 +1400,10 @@ const birdSpots = [
     { id: "cockatiel",              point: canvaPoint(1048, 578), tidy: "below" },
     { id: "blue-crowned-pigeon",    point: canvaPoint(1120, 578), tidy: "below" },   // the corner
     // --- right column: all on ONE line (x = 1120), names in a neat column to the right ---
-    { id: "diamond-dove",           point: canvaPoint(1120, 525), tidy: "right" },
-    { id: "zebra-finch",            point: canvaPoint(1120, 470), tidy: "right" },
-    { id: "golden-pheasant",        point: canvaPoint(1120, 396), tidy: "right" },
-    { id: "ring-necked-pheasant",   point: canvaPoint(1120, 339), tidy: "right" },
+    { id: "diamond-dove",           point: canvaPoint(1120, 505), tidy: "right" },
+    { id: "zebra-finch",            point: canvaPoint(1120, 430), tidy: "right" },
+    { id: "golden-pheasant",        point: canvaPoint(1120, 355), tidy: "right" },
+    { id: "ring-necked-pheasant",   point: canvaPoint(1120, 290), tidy: "right" },
     // --- top row: all on ONE line (y = 230), names in one neat row above the badges ---
     { id: "white-peacock",          point: canvaPoint(1068, 230), tidy: "above" },
     { id: "indian-peafowl",         point: canvaPoint(976, 230),  tidy: "above" },
@@ -1913,7 +1933,7 @@ if (new URLSearchParams(location.search).has("place")) {
 
         // map -> sketch pixels (the numbers canvaPoint() takes)
         const sx = Math.round(unstretchX(mx / CANVA_SCALE + CANVA_ORIGIN.x));
-        const sy = Math.round(my / CANVA_SCALE + CANVA_ORIGIN.y);
+        const sy = Math.round(unstretchY(my / CANVA_SCALE + CANVA_ORIGIN.y));
 
         placePreview = { id: "New spot", point: canvaPoint(sx, sy) };
         const line = '{ id: "BIRD-ID", point: canvaPoint(' + sx + ', ' + sy + ') },';
@@ -2011,7 +2031,7 @@ function grassGapToPaths(x, y) {
 // Is the map point inside a pond (k = 1 the water, bigger = with its shore and wet bank)?
 function insidePond(x, y, k) {
     const sx = unstretchX(x / CANVA_SCALE + CANVA_ORIGIN.x);
-    const sy = y / CANVA_SCALE + CANVA_ORIGIN.y;
+    const sy = unstretchY(y / CANVA_SCALE + CANVA_ORIGIN.y);
     for (const pond of PONDS) {
         const ex = (sx - pond.center[0]) / (pond.rx * k), ey = (sy - pond.center[1]) / (pond.ry * k);
         if (ex * ex + ey * ey < 1) return true;
