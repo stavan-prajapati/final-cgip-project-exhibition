@@ -3,8 +3,8 @@
 //
 // It is built exactly like aviary.js, cages.js and main-map.js: tiled walkways with a soft shadow and a stone
 // border, a blue dotted guide line, the visitor pointer (WASD / arrow keys on a PC, joystick on a phone),
-// a wooden-framed board and a map that fits every screen. There are no animals, trees or other extras yet:
-// this page is the MAP (animals are added later).
+// a wooden-framed board and a map that fits every screen. Animal markers stand beside the paths; walk up to one
+// and a "You reached ..." popup opens the animal card (animal-card.js, data/zoo-data.js).
 //
 // The paths come from the sketch "zoo_map_animals". Every point is written in SKETCH pixels (see ZOO MAP GEOMETRY),
 // so you can compare the numbers with the drawing and move a path by changing a number.
@@ -728,6 +728,7 @@ function transformPoint(M, p) {
 
 // ---------- Move the visitor ----------
 function updateVisitor(dt) {
+    if (typeof isAnimalCardOpen === "function" && isAnimalCardOpen()) return;   // the visitor stands still while a card is open
     // 1. read the controls (y grows downward on the screen)
     let ix = 0, iy = 0;
     if (keys["a"] || keys["arrowleft"])  ix -= 1;
@@ -1221,10 +1222,62 @@ const animalSpots = [
 // Every animal gets the SAME badge (wooden ring, cream face, one small picture) and the same teal name sign.
 // (The aviary and cages show a bird on every badge; here every animal shows a paw.)
 const ANIMAL_ICON = "🐾";
-const USE_OWN_ICONS = false;       // true = each animal shows its own emoji from animalInfo instead of the paw
+const USE_OWN_ICONS = true;        // true = each animal shows its own emoji from animalInfo instead of the paw
 
 function animalName(id) { return animalInfo[id] ? animalInfo[id].name : id; }
-function animalIcon(id) { return (USE_OWN_ICONS && animalInfo[id]) ? animalInfo[id].icon : ANIMAL_ICON; }
+// ---------- Does this device have the emoji? ----------
+// Older phones / PCs have no picture for new emoji (like the nilgai) and show an empty box or nothing.
+// We draw the emoji on a tiny hidden canvas and compare it with a character no font has (the "empty box").
+// Same picture as the box, or nothing drawn at all = not supported, so the map draws a paw placeholder instead.
+const emojiChecked = {};
+function emojiSupported(emoji) {
+    if (!emoji) return false;
+    if (emojiChecked[emoji] !== undefined) return emojiChecked[emoji];
+    let ok = true;
+    try {
+        const size = 32;
+        const test = document.createElement("canvas");
+        test.width = size; test.height = size;
+        const c = test.getContext("2d", { willReadFrequently: true });
+        const look = function (text) {
+            c.clearRect(0, 0, size, size);
+            c.font = "24px sans-serif";
+            c.textAlign = "center";
+            c.textBaseline = "middle";
+            c.fillStyle = "#000";
+            c.fillText(text, size / 2, size / 2);
+            return c.getImageData(0, 0, size, size).data;
+        };
+        const mine = look(emoji);
+        const box = look("\uFFFF");                       // a character no font has: shows the "empty box"
+        let inked = 0, same = true;
+        for (let i = 3; i < mine.length; i += 4) {
+            if (mine[i] > 0) inked++;
+            if (mine[i] !== box[i]) same = false;
+        }
+        ok = inked > 8 && !same;
+    } catch (e) {
+        ok = true;                                          // cannot test: trust the emoji
+    }
+    emojiChecked[emoji] = ok;
+    return ok;
+}
+
+// the emoji to draw on a badge, or null when this device cannot show it (then drawPlaceholderPaw is used)
+function animalIcon(id) {
+    const emoji = (USE_OWN_ICONS && animalInfo[id]) ? animalInfo[id].icon : ANIMAL_ICON;
+    return emojiSupported(emoji) ? emoji : null;
+}
+
+// Placeholder when the emoji is missing: a small paw print made of shapes (needs no emoji font)
+function drawPlaceholderPaw(x, y, R) {
+    ctx.fillStyle = "#6f4524";
+    ctx.beginPath(); ctx.ellipse(x, y + R * 0.22, R * 0.36, R * 0.30, 0, 0, Math.PI * 2); ctx.fill();   // big pad
+    const toes = [[-0.46, -0.10], [-0.17, -0.42], [0.17, -0.42], [0.46, -0.10]];
+    for (const t of toes) {
+        ctx.beginPath(); ctx.ellipse(x + R * t[0], y + R * t[1], R * 0.15, R * 0.19, 0, 0, Math.PI * 2); ctx.fill();
+    }
+}
 
 // map point -> screen pixel (uses the view matrix, so it also works when the map is turned on a phone)
 function mapToScreen(p) {
@@ -1340,7 +1393,7 @@ function buildAnimalItem(spot, textLimit) {
     return {
         id: spot.id, sx: sx, sy: sy, R: R, lines: lines, w: w, h: h,
         lx: sx - w / 2, ly: sy + R + LABEL_GAP, leader: null, placed: false, tidy: spot.tidy || false,
-        icon: spot.preview ? "📍" : animalIcon(spot.id), ring: spot.preview ? "#168bff" : "#6f4524"
+        icon: spot.preview ? (emojiSupported("📍") ? "📍" : null) : animalIcon(spot.id), ring: spot.preview ? "#168bff" : "#6f4524"
     };
 }
 
@@ -1573,7 +1626,8 @@ function drawAnimalSpots() {
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillStyle = "#000";
-        ctx.fillText(it.icon, sx, sy + 1);
+        if (it.icon) ctx.fillText(it.icon, sx, sy + 1);
+        else drawPlaceholderPaw(sx, sy, R);              // this device has no picture for the emoji
     }
 
     // 3. names (on top of every badge and line)
@@ -1600,6 +1654,43 @@ function drawAnimalSpots() {
         }
     }
     ctx.restore();
+}
+
+// ---------- "You reached ..." popup (same look as the main map, aviary and cages) ----------
+const ANIMAL_TRIGGER = 80;          // how close the visitor must be (map units) to get the popup
+
+const animalPopup = document.createElement("div");
+animalPopup.className = "arrival-popup";
+animalPopup.innerHTML =
+    '<span class="arrival-popup-icon">🐾</span>' +
+    '<span class="arrival-popup-text"></span>' +
+    '<button type="button">View Details</button>';
+document.body.appendChild(animalPopup);
+
+let animalNearby = null;            // the animal id the popup is showing now (or null)
+
+animalPopup.querySelector("button").addEventListener("click", function () {
+    if (animalNearby) openAnimalCard(animalNearby);
+});
+
+function updateAnimalPopup() {
+    const cardOpen = typeof isAnimalCardOpen === "function" && isAnimalCardOpen();
+    // the CLOSEST animal within range wins (animals can stand near each other)
+    let found = null, best = ANIMAL_TRIGGER;
+    if (!cardOpen) {
+        for (const spot of animalSpots) {
+            const dist = Math.hypot(visitor.x - spot.point.x, visitor.y - spot.point.y);
+            if (dist <= best) { best = dist; found = spot.id; }
+        }
+    }
+    if (found === animalNearby) return;            // nothing changed
+    animalNearby = found;
+    if (found) {
+        animalPopup.querySelector(".arrival-popup-text").textContent = "You reached " + animalName(found);
+        animalPopup.style.display = "flex";
+    } else {
+        animalPopup.style.display = "none";
+    }
 }
 
 // ---------- Placement helper: open zoo.html?place ----------
@@ -1768,6 +1859,7 @@ function animateRoute(now) {
     }
 
     updateVisitor(dt);                   // the visitor moves with WASD / joystick
+    updateAnimalPopup();                 // "You reached ..." popup near an animal
 
     drawMap();
     requestAnimationFrame(animateRoute);

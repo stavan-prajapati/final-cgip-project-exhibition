@@ -1,5 +1,7 @@
 // ============================================================
-// SMART ZOO GUIDE — ZOO ANIMALS (placeholder card data)
+// SMART ZOO GUIDE — ZOO ANIMALS (card data)
+//
+// photo: images/animals/<name>.jpg      audio: audio_animals/<name>.mp3 or .wav  ("" = "Audio coming soon")
 // ============================================================
 
 const animalSources = {
@@ -13,12 +15,20 @@ const animalSources = {
     cms:      { name: "Convention on Migratory Species", url: "https://www.cms.int/" }
 };
 
+const conservationStatus = {
+    LC: { label: "Least Concern",   color: "#2e7d32" },
+    NT: { label: "Near Threatened", color: "#9e9d24" },
+    VU: { label: "Vulnerable",      color: "#ef6c00" },
+    EN: { label: "Endangered",      color: "#c62828" }
+};
+
 const zooAnimals = [
     {
         id: "bengal-tiger", number: 1, name: "Bengal Tiger",
         scientific: "Panthera tigris tigris",
         status: "EN",
         photo: "images/animals/bengal_tiger.jpg",
+        audio: "audio_animals/bengal_tiger.mp3",
         habitat: "Tropical and subtropical forests, grasslands, mangroves and forested wetlands.",
         diet: "Deer, wild boar, buffalo and other medium-to-large animals.",
         weight: "Approx. 100–260 kg; males are generally heavier and values vary by region.",
@@ -31,6 +41,7 @@ const zooAnimals = [
         scientific: "Hippopotamus amphibius",
         status: "VU",
         photo: "images/animals/hippopotamus.jpg",
+        audio: "audio_animals/hippopotamus.mp3",
         habitat: "Rivers, lakes, swamps and other freshwater habitats in sub-Saharan Africa.",
         diet: "Mainly grasses and other plant matter.",
         weight: "Approx. 1,400–4,500 kg; varies by sex and individual.",
@@ -43,6 +54,7 @@ const zooAnimals = [
         scientific: "Canis lupus pallipes",
         status: "VU",
         photo: "images/animals/indian_wolf.jpg",
+        audio: "audio_animals/indian_wolf.mp3",
         habitat: "Dry grasslands, scrublands, semi-arid regions and open landscapes.",
         diet: "Small and medium-sized mammals, rodents, livestock and carrion.",
         weight: "Approx. 18–25 kg; varies.",
@@ -55,6 +67,7 @@ const zooAnimals = [
         scientific: "Canis aureus",
         status: "LC",
         photo: "images/animals/jackal.jpg",
+        audio: "audio_animals/jackal.mp3",
         habitat: "Grasslands, scrublands, forests, wetlands and areas near human settlements.",
         diet: "Small animals, insects, fruits, seeds and carrion.",
         weight: "Approx. 6–15 kg; varies.",
@@ -67,6 +80,7 @@ const zooAnimals = [
         scientific: "Panthera pardus",
         status: "VU",
         photo: "images/animals/leopard.jpg",
+        audio: "audio_animals/leopard.mp3",
         habitat: "Forests, grasslands, mountains, scrublands and some human-modified landscapes.",
         diet: "Deer, wild pigs, monkeys, small mammals and birds.",
         weight: "Approx. 30–90 kg; varies by sex and region.",
@@ -79,6 +93,7 @@ const zooAnimals = [
         scientific: "Boselaphus tragocamelus",
         status: "LC",
         photo: "images/animals/nilgai.jpg",
+        audio: "audio_animals/nilgai.wav",
         habitat: "Grasslands, scrub forests, open woodland and agricultural landscapes.",
         diet: "Grasses, herbs, leaves and other vegetation.",
         weight: "Approx. 109–288 kg; varies by sex and individual.",
@@ -91,6 +106,7 @@ const zooAnimals = [
         scientific: "Trachemys scripta elegans",
         status: "LC",
         photo: "images/animals/red_eared_slider.jpg",
+        audio: "",
         habitat: "Ponds, lakes, marshes and slow-moving freshwater habitats.",
         diet: "Aquatic plants, insects, worms, small fish and other aquatic animals.",
         weight: "Approx. 1–2 kg; varies.",
@@ -103,6 +119,7 @@ const zooAnimals = [
         scientific: "Melursus ursinus",
         status: "VU",
         photo: "images/animals/sloth_bear.jpg",
+        audio: "audio_animals/sloth_bear.wav",
         habitat: "Dry and moist forests, scrublands and some grasslands in the Indian subcontinent.",
         diet: "Termites, ants, fruits, honey and other insects or plant matter.",
         weight: "Approx. 90–140 kg; varies.",
@@ -115,6 +132,7 @@ const zooAnimals = [
         scientific: "Macaca nemestrina",
         status: "VU",
         photo: "images/animals/southern_pig-tailed_macaque.jpg",
+        audio: "audio_animals/southern_pig_tailed_macaque.wav",
         habitat: "Tropical rainforests and other forested habitats in Southeast Asia.",
         diet: "Fruits, seeds, leaves, insects and small animals.",
         weight: "Approx. 5–15 kg; varies by sex.",
@@ -127,6 +145,7 @@ const zooAnimals = [
         scientific: "Hyaena hyaena",
         status: "NT",
         photo: "images/animals/striped_hyena.jpg",
+        audio: "audio_animals/striped_hyena.mp3",
         habitat: "Dry grasslands, scrublands, rocky areas and semi-desert landscapes.",
         diet: "Carrion, small animals, insects, fruits and other available food.",
         weight: "Approx. 25–55 kg; varies.",
@@ -139,6 +158,7 @@ const zooAnimals = [
         scientific: "Panthera tigris tigris — white colour variation",
         status: "EN",
         photo: "images/animals/white_tiger.jpg",
+        audio: "audio_animals/white_tiger.mp3",
         habitat: "The same habitat as Bengal tigers: forests, grasslands and mangrove habitats.",
         diet: "Meat, including deer, wild boar and other large prey.",
         weight: "Approx. 100–260 kg; varies by sex and individual.",
@@ -151,6 +171,7 @@ const zooAnimals = [
         scientific: "Cuon alpinus",
         status: "EN",
         photo: "images/animals/wild_dog.jpg",
+        audio: "audio_animals/wild_dog.mp3",
         habitat: "Forests, grasslands and mountainous habitats across parts of South and Southeast Asia.",
         diet: "Deer and other medium-sized mammals; dholes hunt cooperatively in packs.",
         weight: "Approx. 10–20 kg; varies.",
@@ -163,6 +184,7 @@ const zooAnimals = [
         scientific: "Hystrix indica",
         status: "LC",
         photo: "images/animals/indian_crested_porcupine.jpg",
+        audio: "audio_animals/indian_crested_porcupine.mp3",
         habitat: "Rocky hillsides, forests, scrublands, grasslands, agricultural areas and other adaptable habitats across parts of Asia.",
         diet: "Mainly plant material, including roots, tubers, bulbs, fruits, grains and other vegetation. It may also gnaw bones for minerals.",
         weight: "Approx. 11–18 kg; varies.",
