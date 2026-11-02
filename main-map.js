@@ -1652,6 +1652,23 @@ function createJoystick() {
         "background:rgba(63,143,74,0.95); border:3px solid #fff4d6;" +
         "box-shadow:0 2px 6px rgba(0,0,0,0.3);";
 
+    // Four arrows on the base show which way each push moves the pointer (up is always up on the screen,
+    // even when the map is turned a quarter turn on a phone).
+    const ARROWS = [
+        { text: "\u25B2", css: "top:5px; left:50%; transform:translateX(-50%);" },
+        { text: "\u25BC", css: "bottom:5px; left:50%; transform:translateX(-50%);" },
+        { text: "\u25C0", css: "left:6px; top:50%; transform:translateY(-50%);" },
+        { text: "\u25B6", css: "right:6px; top:50%; transform:translateY(-50%);" }
+    ];
+    for (const arrow of ARROWS) {
+        const mark = document.createElement("span");
+        mark.textContent = arrow.text;
+        mark.style.cssText =
+            "position:absolute; pointer-events:none; line-height:1; font-size:15px;" +
+            "color:#4e3119; text-shadow:0 1px 0 rgba(255,244,214,0.9);" + arrow.css;
+        base.appendChild(mark);
+    }
+
     base.appendChild(knob);
     document.body.appendChild(base);
 

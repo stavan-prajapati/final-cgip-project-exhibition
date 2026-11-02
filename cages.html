@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Caged Birds | Kamatibaug Zoo Navigation Guide</title>
+    <!-- style.css gives the bird card and the "You reached ..." popup the same look as the main map,
+         aviary.css adds the bird card details (photo, audio player). cages.css is the page itself. -->
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="aviary.css">
     <link rel="stylesheet" href="cages.css">
 </head>
 <body>
@@ -21,6 +25,66 @@
 
     <a class="zoo-back" href="aviary.html">&larr; Back to Aviary</a>
 
+    <!-- Bird information card (hidden until "View Details" is pressed). Filled by bird-card.js -->
+    <div class="card-overlay" id="placeCard" aria-hidden="true">
+        <div class="card" role="dialog" aria-modal="true" aria-labelledby="cardTitle">
+
+            <header class="card-header">
+                <div class="card-icon" id="cardIcon"></div>
+                <div class="card-heading">
+                    <h2 id="cardTitle"></h2>
+                    <p id="cardTagline"></p>
+                    <span class="status-chip" id="cardStatus"></span>
+                </div>
+                <button class="card-close" id="cardClose" type="button" aria-label="Close">&times;</button>
+            </header>
+
+            <div class="card-body" id="cardBody">
+                <figure class="card-photo">
+                    <div class="photo-frame">
+                        <img id="cardImg" alt="" hidden>
+                        <div class="photo-fallback" id="cardFallback">
+                            <span id="cardFallbackIcon"></span>
+                            <small>Photo coming soon</small>
+                        </div>
+                    </div>
+                    <figcaption id="cardCredit"></figcaption>
+                </figure>
+
+                <!-- Bird sound player. The sound file is set in data/aviary-data.js ("audio") -->
+                <section class="bird-audio" id="birdAudio">
+                    <button class="audio-btn" id="audioBtn" type="button" aria-label="Play the bird sound" disabled>&#9654;</button>
+                    <div class="audio-info">
+                        <strong>Listen to its call</strong>
+                        <small id="audioNote">Audio coming soon</small>
+                        <div class="audio-bar"><div class="audio-fill" id="audioFill"></div></div>
+                    </div>
+                </section>
+
+                <section>
+                    <h3>Quick facts</h3>
+                    <ul class="facts" id="cardFacts"></ul>
+                </section>
+
+                <section class="note did-you-know" id="cardDyk">
+                    <h3>Did you know?</h3>
+                    <p id="cardDykText"></p>
+                </section>
+
+                <section class="note visit-tip" id="cardTipBox" hidden></section>
+
+                <footer class="sources">
+                    <h3>Sources</h3>
+                    <ul id="cardSources"></ul>
+                </footer>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Order matters: data first, then the card, then the map -->
+    <script src="data/aviary-data.js"></script>
+    <script src="bird-card.js"></script>
     <script src="cages.js"></script>
 </body>
 </html>
