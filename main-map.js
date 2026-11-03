@@ -755,7 +755,37 @@ function drawPlace(place, index, t) {
         ctx.fillText(lines[i], place.x, labelY + 6 + PLACE_LINE_HEIGHT * (i + 0.5));
     }
 
+    // "Touch to visit": a small tag under the name. Tapping the badge, the name or the tag walks the pointer there
+    // (see the click handler "Tap a place" below). The Ticket Counter is not a place to visit, so it has no tag.
+    if (isVisitablePlace(place)) {
+        const tag = "Touch to visit";
+        ctx.font = "700 14px " + PLACE_FONT_FAMILY;
+        const tagW = ctx.measureText(tag).width + 20;
+        const tagH = 22;
+        const tagX = place.x - tagW / 2;
+        const tagY = labelY + labelH + 6;
+        roundedRect(tagX, tagY + 2, tagW, tagH, tagH / 2);
+        ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
+        ctx.fill();
+        roundedRect(tagX, tagY, tagW, tagH, tagH / 2);
+        ctx.fillStyle = style.color;
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "#fff";
+        ctx.stroke();
+        ctx.fillStyle = "#fff";
+        ctx.fillText(tag, place.x, tagY + tagH / 2 + 1);
+        place.hitBox.w = Math.max(place.hitBox.w, tagW + 12);
+        place.hitBox.x = Math.min(place.hitBox.x, place.x - tagW / 2 - 6);
+        place.hitBox.h = tagY + tagH + 6 - place.hitBox.y;
+    }
+
     if ("letterSpacing" in ctx) ctx.letterSpacing = "0px";
+}
+
+// Which places can be visited by tapping them? Every place except the Ticket Counter.
+function isVisitablePlace(place) {
+    return place.id !== "ticket";
 }
 
 // Draw all places
@@ -915,6 +945,36 @@ canvas.addEventListener("click", function (event) {
         startAutoWalk(PLACE_LIST.find(function (item) { return item.node === "bridge"; }));
     }
 });
+
+// Tap a place (the Aviary, the Museum, the Clock or the Zoo Entrance): walk there.
+// The tap area is the badge, the name and the "Touch to visit" tag (place.hitBox, set in drawPlace).
+// The pointer then walks along the paths and the normal popup appears when it arrives.
+function placeAtMapPoint(mx, my) {
+    for (const place of places) {
+        const b = place.hitBox;
+        if (!b || !isVisitablePlace(place)) continue;
+        if (mx >= b.x && mx <= b.x + b.w && my >= b.y && my <= b.y + b.h) return place;
+    }
+    return null;
+}
+
+canvas.addEventListener("click", function (event) {
+    if (EDIT_MODE) return;
+    if (typeof isPlaceCardOpen === "function" && isPlaceCardOpen()) return;
+    const rect = canvas.getBoundingClientRect();
+    const place = placeAtMapPoint((event.clientX - rect.left - viewOffsetX) / viewScale,
+                                  (event.clientY - rect.top - viewOffsetY) / viewScale);
+    const item = place && PLACE_LIST.find(function (i) { return i.node === place.id; });
+    if (item) startAutoWalk(item);
+});
+
+canvas.addEventListener("pointermove", function (event) {
+    if (EDIT_MODE || event.pointerType !== "mouse") return;
+    const rect = canvas.getBoundingClientRect();
+    const place = placeAtMapPoint((event.clientX - rect.left - viewOffsetX) / viewScale,
+                                  (event.clientY - rect.top - viewOffsetY) / viewScale);
+    canvas.style.cursor = place ? "pointer" : "";
+}, { passive: true });
 
 // ---------- Bridge popup: watch the animals of the Vishwamitri ----------
 // Shown while the visitor stands on the bridge (over the stream). The button opens the
@@ -2044,7 +2104,7 @@ function positionPlacesToggle() {
     }
 }
 
-// The button text: "Places", or "Walking to ..." while the pointer is on its way
+// The button text: "View Location", or "Walking to ..." while the pointer is on its way
 function updatePlacesToggle() {
     const toggle = document.getElementById("placesToggle");
     if (!toggle) return;
@@ -2052,7 +2112,7 @@ function updatePlacesToggle() {
     const PIN = '<svg viewBox="0 0 24 24" width="1.15em" height="1.15em" aria-hidden="true" style="vertical-align:-0.2em">'
               + '<path d="M12 1.5C8 1.5 4.8 4.7 4.8 8.7c0 5.4 7.2 13.8 7.2 13.8s7.2-8.4 7.2-13.8c0-4-3.2-7.2-7.2-7.2z" fill="#ea4335" stroke="#a52714" stroke-width="1"/>'
               + '<circle cx="12" cy="8.7" r="2.9" fill="#fff"/></svg>';
-    toggle.innerHTML = autoWalk ? "\uD83D\uDEB6 Walking\u2026" : PIN + " Select Location";
+    toggle.innerHTML = autoWalk ? "\uD83D\uDEB6 Walking\u2026" : PIN + " View Location";
     toggle.setAttribute("aria-label", autoWalk ? "Walking to " + autoWalk.name + ". Open the list of places" : "Open the list of places");
     toggle.classList.toggle("walking", !!autoWalk);
     positionPlacesToggle();

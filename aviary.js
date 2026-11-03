@@ -1440,7 +1440,7 @@ const birdSpots = [
 // A wooden SIGN BOARD (post + plank reading "CAGED BIRDS") beside the end of dome 2's tail.
 // When the visitor reaches it, a popup asks "Visit the Caged Birds?". The button opens cages.html
 // (the caged birds have their own page; that page is made later).
-const CAGE_LINK = { page: "cages.html", question: "Visit the Caged Birds?", button: "Visit Cages" };
+const CAGE_LINK = { page: "cages.html", name: "Caged Birds", question: "Visit the Caged Birds?", button: "Visit Cages" };
 const cageMarker = {
     name: "Caged Birds",
     color: "#3949ab",                                       // indigo: different from the purple Aviary badge
@@ -1861,12 +1861,13 @@ function updateBirdPopup() {
 // ======================================================================
 // SELECT LOCATION LIST (replaces the joystick)
 // ======================================================================
-// A "Select Location" button at the top opens a list of the birds. Tapping a bird in the list (or tapping
+// A "View Birds" button at the top opens a list of the birds. Tapping a bird in the list (or tapping
 // its badge / name on the map) makes the visitor pointer WALK there along the blue guide line. When it
 // arrives, the normal popup appears ("You reached ... / View Details"), and that opens the bird card.
 // The keyboard (WASD / arrows) still works on a PC and stops the automatic walk.
 
 const AUTOWALK_SCREEN_SPEED = 300;   // pointer speed during the automatic walk (screen pixels per second)
+const AUTOWALK_CAGE_FACTOR = 2.6;    // the walk to the CAGED BIRDS sign is long, so it goes this many times faster
 
 // The walking track = the blue guide line (entrance -> dome 1 -> bridge -> dome 2).
 // For every little piece of it we know what the visitor stands on (ground way 0, the bridge, or ground way 1).
@@ -1916,6 +1917,13 @@ const birdStops = birdSpots.map(function (spot) {
     return { id: spot.id, name: birdName(spot.id), s: nearestOnTrack(spot.point.x, spot.point.y).s };
 }).sort(function (a, b) { return a.s - b.s; });
 
+// The "Caged Birds" sign is the LAST stop of the walk (the very end of the blue guide line).
+// It is in the list too, and tapping the sign on the map walks there. On arrival the popup
+// "Visit the Caged Birds?" appears (updateCagePopup), and its button opens cages.html.
+const CAGE_STOP_ID = "__caged-birds";
+const cageStop = { id: CAGE_STOP_ID, name: CAGE_LINK.name || "Caged Birds", s: walkTrack.length, cage: true };
+birdStops.push(cageStop);
+
 let autoWalk = null;      // null = not walking, otherwise { id, name, s, targetS, dir, lead }
 let forcedBird = null;    // the bird we just walked to: its popup is shown even if another bird is a little closer
 
@@ -1953,7 +1961,7 @@ function cancelAutoWalk() {
 // Called every frame while walking (from updateVisitor)
 function stepAutoWalk(dt) {
     const w = autoWalk;
-    let move = (AUTOWALK_SCREEN_SPEED / viewScale) * dt;       // screen pixels -> map units
+    let move = (AUTOWALK_SCREEN_SPEED * (w.id === CAGE_STOP_ID ? AUTOWALK_CAGE_FACTOR : 1) / viewScale) * dt;       // screen pixels -> map units
 
     if (w.lead) {                                              // step onto the guide line first
         const dx = w.lead.x - visitor.x, dy = w.lead.y - visitor.y, d = Math.hypot(dx, dy);
@@ -1978,13 +1986,13 @@ function stepAutoWalk(dt) {
     turnVisitorTo(p.angle + (w.dir < 0 ? Math.PI : 0), dt);
 
     if (Math.abs(w.targetS - w.s) < 0.01) {                    // arrived
-        forcedBird = { id: w.id, x: visitor.x, y: visitor.y };
+        if (w.id !== CAGE_STOP_ID) forcedBird = { id: w.id, x: visitor.x, y: visitor.y };   // (the cage sign has its own popup)
         autoWalk = null;
         updateSelectToggle();                                  // updateBirdPopup() now shows "You reached ..."
     }
 }
 
-// ---------- The "Select Location" button and the list ----------
+// ---------- The "View Birds" button and the list ----------
 const SELECT_HINT_KEY = "zooAviarySelectSeen";
 const SELECT_PIN = '<svg viewBox="0 0 24 24" width="1.15em" height="1.15em" aria-hidden="true" style="vertical-align:-0.2em">'
     + '<path d="M12 1.5C8 1.5 4.8 4.7 4.8 8.7c0 5.4 7.2 13.8 7.2 13.8s7.2-8.4 7.2-13.8c0-4-3.2-7.2-7.2-7.2z" fill="#ea4335" stroke="#a52714" stroke-width="1"/>'
@@ -2012,28 +2020,28 @@ function createSelectList() {
     panel.appendChild(heading);
 
     for (const stop of birdStops) {
-        const bird = (typeof aviaryBirds !== "undefined") && aviaryBirds.find(function (b) { return b.id === stop.id; });
+        const bird = !stop.cage && (typeof aviaryBirds !== "undefined") && aviaryBirds.find(function (b) { return b.id === stop.id; });
         const status = bird && typeof conservationStatus !== "undefined" ? conservationStatus[bird.status] : null;
 
         const row = document.createElement("button");
         row.type = "button";
         row.className = "places-item";
         row.setAttribute("role", "menuitem");
-        row.style.setProperty("--place-color", status ? status.color : "#8e24aa");
+        row.style.setProperty("--place-color", stop.cage ? cageMarker.color : (status ? status.color : "#8e24aa"));
 
         const icon = document.createElement("span");
         icon.className = "places-item-icon";
         icon.setAttribute("aria-hidden", "true");
-        icon.textContent = "\uD83D\uDC26";
+        icon.textContent = stop.cage ? "\uD83E\uDD9C" : "\uD83D\uDC26";
 
         const text = document.createElement("span");
         text.className = "places-item-text";
         const name = document.createElement("b");
         name.textContent = stop.name;
         text.appendChild(name);
-        if (status) {
+        if (stop.cage || status) {
             const note = document.createElement("small");
-            note.textContent = status.label;
+            note.textContent = stop.cage ? "Tap to visit the caged birds section" : status.label;
             text.appendChild(note);
         }
 
@@ -2116,11 +2124,11 @@ function positionSelectButton() {
     toggle.style.left = Math.round(Math.max(4, (window.innerWidth - toggle.offsetWidth) / 2)) + "px";
 }
 
-// The button text: "Select Location", or "Walking..." while the pointer is on its way
+// The button text: "View Birds", or "Walking..." while the pointer is on its way
 function updateSelectToggle() {
     const toggle = document.getElementById("selectToggle");
     if (!toggle) return;
-    toggle.innerHTML = autoWalk ? "\uD83D\uDEB6 Walking\u2026" : SELECT_PIN + " Select Location";
+    toggle.innerHTML = autoWalk ? "\uD83D\uDEB6 Walking\u2026" : SELECT_PIN + " View Birds";
     toggle.setAttribute("aria-label", autoWalk ? "Walking to " + autoWalk.name + ". Open the list of birds" : "Open the list of birds");
     toggle.classList.toggle("walking", !!autoWalk);
     positionSelectButton();
@@ -2144,13 +2152,20 @@ canvas.addEventListener("click", function (e) {
     const r = canvas.getBoundingClientRect();
     const id = birdAtScreenPoint(e.clientX - r.left, e.clientY - r.top);
     const stop = id && birdStops.find(function (b) { return b.id === id; });
-    if (stop) startAutoWalk(stop);
+    if (stop) { startAutoWalk(stop); return; }
+    if (cageSignAt(e.clientX - r.left, e.clientY - r.top)) startAutoWalk(cageStop);     // tap the CAGED BIRDS sign
 });
+
+function cageSignAt(x, y) {
+    const h = drawCageMarker.hit;
+    return !!h && x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h;
+}
 
 canvas.addEventListener("pointermove", function (e) {
     if (e.pointerType !== "mouse") return;
     const r = canvas.getBoundingClientRect();
-    canvas.style.cursor = birdAtScreenPoint(e.clientX - r.left, e.clientY - r.top) ? "pointer" : "";
+    const px = e.clientX - r.left, py = e.clientY - r.top;
+    canvas.style.cursor = (birdAtScreenPoint(px, py) || cageSignAt(px, py)) ? "pointer" : "";
 }, { passive: true });
 
 // ---------- "Caged Birds" marker: a wooden SIGN BOARD ----------
@@ -2158,6 +2173,7 @@ canvas.addEventListener("pointermove", function (e) {
 // "CAGED BIRDS" and an arrow in the walking direction. Same wood as the hanging title sign.
 // Drawn in SCREEN pixels, so it stays upright and the same size on a turned phone map.
 const SIGN_TEXT = "CAGED BIRDS";
+const SIGN_SUBTEXT = "CLICK TO VISIT";
 const SIGN_SIZE = 0.72;     // size of the whole sign board: 1 = old size, 0.72 = about a quarter smaller. Lower = smaller.
 
 function drawCageMarker() {
@@ -2192,7 +2208,7 @@ function drawCageMarker() {
     const textW = ctx.measureText(SIGN_TEXT).width;
     const arrowW = 16 * S;
     const bw = textW + arrowW + 30 * S;                       // plank width
-    const bh = 30 * S;                                        // plank height
+    const bh = 40 * S;                                        // plank height (two lines: the name and "CLICK TO VISIT")
     const postW = 7 * S;
     const postH = 62 * S;                                     // the post stands this high
 
@@ -2242,6 +2258,7 @@ function drawCageMarker() {
     const px = spot.px;                                       // post centre
     const baseY = spot.py + 16 * S;                           // where the post enters the ground
     const topY = baseY - postH;                               // top of the post
+    drawCageMarker.hit = { x: (spot.side === 1 ? px : px - bw) - 6, y: topY - 6, w: bw + 12, h: bh + 12 };   // tap area (screen pixels)
 
     // ground shadow
     ctx.fillStyle = "rgba(0, 0, 0, 0.25)";
@@ -2299,12 +2316,20 @@ function drawCageMarker() {
     ctx.textBaseline = "middle";
     const textX = x0 + 14 * S + (side === 1 ? 4 * S : 0);
     ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
-    ctx.fillText(SIGN_TEXT, textX, 0.5 + 1);
+    ctx.fillText(SIGN_TEXT, textX, -7 * S + 1);
     ctx.fillStyle = "#fff4d6";
-    ctx.fillText(SIGN_TEXT, textX, 0.5);
+    ctx.fillText(SIGN_TEXT, textX, -7 * S);
+
+    // second line: tells the visitor they can tap the sign
+    const subPx = Math.max(7, Math.round(fontPx * 0.68));
+    ctx.font = "800 " + subPx + "px 'Trebuchet MS', 'Segoe UI', sans-serif";
+    ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+    ctx.fillText(SIGN_SUBTEXT, textX, 9 * S + 1);
+    ctx.fillStyle = "#ffd9a0";
+    ctx.fillText(SIGN_SUBTEXT, textX, 9 * S);
 
     // the arrow: points the way the walk goes (translated back to the screen directions, the plank is nearly upright)
-    const ax = textX + textW + 10 * S, ay = 0;
+    const ax = textX + textW + 10 * S, ay = -4 * S;
     ctx.save();
     ctx.translate(ax, ay);
     ctx.rotate(Math.atan2(dy, dx));
