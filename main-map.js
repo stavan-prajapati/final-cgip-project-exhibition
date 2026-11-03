@@ -1831,6 +1831,7 @@ function findWalkPoints(targetNode) {
 
 function startAutoWalk(item) {
     autoWalk = { node: item.node, name: item.name, points: findWalkPoints(item.node) };
+    if (window.hidePlacesHint) window.hidePlacesHint(true);
     hideProximityPopup();
     bridgePopup.style.display = "none";
     popupDismissedFor = null;
@@ -1899,7 +1900,7 @@ function createPlacesList() {
 
     const heading = document.createElement("div");
     heading.className = "places-heading";
-    heading.textContent = "Where do you want to go?";
+    heading.textContent = "Choose location to visit";
     panel.appendChild(heading);
 
     for (const item of PLACE_LIST) {
@@ -1941,6 +1942,43 @@ function createPlacesList() {
     document.body.appendChild(panel);
     document.body.appendChild(toggle);
 
+    // ---- First-time hint: a small speech bubble + a pulsing ring around the button ----
+    // Shown once after the opening screen. It goes away after a few seconds, when the button is
+    // tapped, or when the pointer starts walking, and it is not shown again on later visits.
+    const HINT_KEY = "zooPlacesHintSeen";
+    let hintSeen = false;
+    try { hintSeen = localStorage.getItem(HINT_KEY) === "1"; } catch (err) { /* private mode: just show it */ }
+
+    const hint = document.createElement("div");
+    hint.id = "placesHint";
+    hint.className = "places-hint";
+    hint.setAttribute("role", "status");
+    hint.textContent = "Choose location to visit";
+    hint.hidden = true;
+    document.body.appendChild(hint);
+
+    let hintTimer = null;
+    function hidePlacesHint(remember) {
+        clearTimeout(hintTimer);
+        hint.hidden = true;
+        toggle.classList.remove("attention");
+        if (remember) {
+            try { localStorage.setItem(HINT_KEY, "1"); } catch (err) { /* ignore */ }
+        }
+    }
+    window.hidePlacesHint = hidePlacesHint;           // used by startAutoWalk()
+
+    if (!hintSeen) {
+        setTimeout(function () {
+            const cardOpen = typeof isPlaceCardOpen === "function" && isPlaceCardOpen();
+            if (autoWalk || cardOpen || !panel.hidden) return;
+            hint.hidden = false;
+            toggle.classList.add("attention");
+            positionPlacesToggle();
+            hintTimer = setTimeout(function () { hidePlacesHint(false); }, 7000);
+        }, 2600);                                     // after the opening screen has faded away
+    }
+
     function setPlacesOpen(open) {
         if (open) {                                           // open just under the button, as far as the screen allows
             const r = toggle.getBoundingClientRect();
@@ -1952,7 +1990,10 @@ function createPlacesList() {
         toggle.setAttribute("aria-expanded", open ? "true" : "false");
     }
 
-    toggle.addEventListener("click", function () { setPlacesOpen(panel.hidden); });
+    toggle.addEventListener("click", function () {
+        hidePlacesHint(true);
+        setPlacesOpen(panel.hidden);
+    });
     // tap outside the list, or press Escape: close it
     document.addEventListener("pointerdown", function (e) {
         if (!panel.hidden && !panel.contains(e.target) && !toggle.contains(e.target)) setPlacesOpen(false);
@@ -1978,13 +2019,26 @@ function positionPlacesToggle() {
     left = Math.max(half, Math.min(window.innerWidth - half, left));
     toggle.style.left = left + "px";
     toggle.style.top = top + "px";
+
+    const hint = document.getElementById("placesHint");
+    if (hint && !hint.hidden) {                              // the bubble stands right above the button
+        const hintHalf = hint.offsetWidth / 2 + 8;
+        const hintLeft = Math.max(hintHalf, Math.min(window.innerWidth - hintHalf, left));
+        hint.style.left = hintLeft + "px";
+        hint.style.top = (top - toggle.offsetHeight / 2 - 12) + "px";
+        hint.style.setProperty("--tail", (hint.offsetWidth / 2 + (left - hintLeft)) + "px");   // keeps the tail on the button
+    }
 }
 
 // The button text: "Places", or "Walking to ..." while the pointer is on its way
 function updatePlacesToggle() {
     const toggle = document.getElementById("placesToggle");
     if (!toggle) return;
-    toggle.textContent = autoWalk ? "\uD83D\uDEB6 Walking\u2026" : "\uD83D\uDCCD Places";
+    // Google-Maps-style red pin (drawn as a small SVG so it looks the same on every device)
+    const PIN = '<svg viewBox="0 0 24 24" width="1.15em" height="1.15em" aria-hidden="true" style="vertical-align:-0.2em">'
+              + '<path d="M12 1.5C8 1.5 4.8 4.7 4.8 8.7c0 5.4 7.2 13.8 7.2 13.8s7.2-8.4 7.2-13.8c0-4-3.2-7.2-7.2-7.2z" fill="#ea4335" stroke="#a52714" stroke-width="1"/>'
+              + '<circle cx="12" cy="8.7" r="2.9" fill="#fff"/></svg>';
+    toggle.innerHTML = autoWalk ? "\uD83D\uDEB6 Walking\u2026" : PIN + " Select Location";
     toggle.setAttribute("aria-label", autoWalk ? "Walking to " + autoWalk.name + ". Open the list of places" : "Open the list of places");
     toggle.classList.toggle("walking", !!autoWalk);
     positionPlacesToggle();
