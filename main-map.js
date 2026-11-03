@@ -107,7 +107,7 @@ const routes = [
 // Lift the "You reached ..." popups a little above the bottom edge of the screen
 (function () {
     const lift = document.createElement("style");
-    lift.textContent = ".arrival-popup { bottom: calc(52px + env(safe-area-inset-bottom, 0px)) !important; }";
+    lift.textContent = ".arrival-popup { bottom: calc(10px + env(safe-area-inset-bottom, 0px)) !important; }";
     document.head.appendChild(lift);
 })();
 
@@ -2698,5 +2698,5 @@ function prefetchPages(urls) {
     });
 }
 window.addEventListener("load", function () {
-    setTimeout(function () { prefetchPages(["aviary.html", "style.css", "aviary.css", "data/aviary-data.js", "bird-card.js", "aviary.js", "zoo.html", "zoo.css", "data/zoo-data.js", "animal-card.js", "zoo.js"]); }, 1500);
+    setTimeout(function () { prefetchPages(["aviary.html", "style.css?v=4", "aviary.css?v=4", "data/aviary-data.js?v=4", "bird-card.js?v=4", "aviary.js?v=4", "zoo.html", "zoo.css?v=4", "data/zoo-data.js?v=4", "animal-card.js?v=4", "zoo.js?v=4"]); }, 1500);
 });

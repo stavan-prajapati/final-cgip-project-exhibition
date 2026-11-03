@@ -1206,3 +1206,12 @@ canvas {
         transition: none;
     }
 }
+/* ---------- Compact arrival popup (does not cover the map) ---------- */
+.arrival-popup { gap: 10px; padding: 8px 10px 8px 12px; font-size: 15px; border-radius: 14px; border-left-width: 8px; max-width: min(460px, calc(100vw - 16px)); }
+.arrival-popup-icon { font-size: 20px; }
+.arrival-popup button { padding: 9px 14px; font-size: 14px; border-radius: 10px; }
+@media (max-width: 600px), (max-height: 500px) {
+    .arrival-popup { gap: 8px; padding: 6px 8px 6px 10px; font-size: 13px; border-width: 2px; border-left-width: 6px; border-radius: 12px; max-width: calc(100vw - 12px); }
+    .arrival-popup-icon { display: none; }
+    .arrival-popup button { padding: 7px 11px; font-size: 13px; }
+}

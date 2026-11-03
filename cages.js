@@ -1155,7 +1155,7 @@ const birdSpots = [
 // Lift the "You reached ..." popups a little above the bottom edge of the screen (same as the aviary)
 (function () {
     const lift = document.createElement("style");
-    lift.textContent = ".arrival-popup { bottom: calc(52px + env(safe-area-inset-bottom, 0px)) !important; }";
+    lift.textContent = ".arrival-popup { bottom: calc(10px + env(safe-area-inset-bottom, 0px)) !important; }";
     document.head.appendChild(lift);
 })();
 
@@ -2271,7 +2271,7 @@ function resizeCanvas() {
             if (el) reserveTop = Math.max(reserveTop, el.offsetTop + el.offsetHeight + 8 - margin);
         }
     }
-    const reserveBottom = 0;
+    const reserveBottom = narrow ? 64 : 0;                          // room for the "You reached ..." popup
     const fitH = freeH - reserveTop - reserveBottom;                    // height the map may use
     const fitCenterY = margin + reserveTop + fitH / 2;                  // where its middle sits on the screen
 
