@@ -796,6 +796,105 @@ proximityPopupButton.addEventListener("click", function () {
 });
 
 
+// ---------- Signboard at the bridge: "Visit Crocs" ----------
+// A wooden arrow sign planted in the grass next to the bridge, pointing at the stream.
+// Tapping it walks the pointer onto the bridge (same as choosing the bridge in the Places list).
+const CROC_SIGN = { x: 396, y: 948, w: 132, h: 40 };      // board rectangle (map units); the arrow tip is on the left
+const CROC_SIGN_POST_BOTTOM = 1004;                      // where the posts enter the ground
+
+function drawCrocSign() {
+    const b = CROC_SIGN;
+    const tip = 16;                                       // length of the arrow tip
+
+    ctx.save();
+
+    // ground shadow
+    ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
+    ctx.beginPath();
+    ctx.ellipse(b.x + b.w / 2 + 4, CROC_SIGN_POST_BOTTOM + 2, b.w * 0.42, 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // two posts
+    ctx.fillStyle = POST_COLOR;
+    ctx.fillRect(b.x + 34, b.y + b.h - 4, 7, CROC_SIGN_POST_BOTTOM - (b.y + b.h - 4));
+    ctx.fillRect(b.x + b.w - 26, b.y + b.h - 4, 7, CROC_SIGN_POST_BOTTOM - (b.y + b.h - 4));
+
+    // board: a plank with an arrow tip on the left
+    function boardPath(dx, dy) {
+        ctx.beginPath();
+        ctx.moveTo(b.x + dx, b.y + b.h / 2 + dy);
+        ctx.lineTo(b.x + tip + dx, b.y + dy);
+        ctx.lineTo(b.x + b.w - 6 + dx, b.y + dy);
+        ctx.quadraticCurveTo(b.x + b.w + dx, b.y + dy, b.x + b.w + dx, b.y + 6 + dy);
+        ctx.lineTo(b.x + b.w + dx, b.y + b.h - 6 + dy);
+        ctx.quadraticCurveTo(b.x + b.w + dx, b.y + b.h + dy, b.x + b.w - 6 + dx, b.y + b.h + dy);
+        ctx.lineTo(b.x + tip + dx, b.y + b.h + dy);
+        ctx.closePath();
+    }
+    boardPath(0, 3);
+    ctx.fillStyle = "rgba(0, 0, 0, 0.25)";
+    ctx.fill();
+
+    boardPath(0, 0);
+    const wood = ctx.createLinearGradient(0, b.y, 0, b.y + b.h);
+    wood.addColorStop(0, "#9a6a3c");
+    wood.addColorStop(1, "#6f4524");
+    ctx.fillStyle = wood;
+    ctx.fill();
+    ctx.lineJoin = "round";
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = RAIL_COLOR;
+    ctx.stroke();
+
+    // wood grain lines
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.12)";
+    ctx.lineWidth = 1;
+    for (let i = 1; i <= 2; i++) {
+        const gy = b.y + (b.h * i) / 3;
+        ctx.beginPath(); ctx.moveTo(b.x + tip + 4, gy); ctx.lineTo(b.x + b.w - 6, gy); ctx.stroke();
+    }
+
+    // two nails
+    ctx.fillStyle = "#d9ad72";
+    ctx.beginPath(); ctx.arc(b.x + tip + 6, b.y + b.h / 2, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(b.x + b.w - 8, b.y + b.h / 2, 2, 0, Math.PI * 2); ctx.fill();
+
+    // text
+    ctx.font = "800 17px " + PLACE_FONT_FAMILY;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+    ctx.fillText("Visit Crocs", b.x + tip + 12, b.y + b.h / 2 + 2);
+    ctx.fillStyle = "#fff4d6";
+    ctx.fillText("Visit Crocs", b.x + tip + 12, b.y + b.h / 2 + 1);
+
+    // a tiny crocodile in the top-right corner of the board
+    const cx = b.x + b.w - 30, cy = b.y + 10;
+    ctx.fillStyle = "#56743f";
+    ctx.beginPath(); ctx.ellipse(cx + 8, cy + 3, 10, 3.6, 0, 0, Math.PI * 2); ctx.fill();          // body
+    ctx.beginPath(); ctx.moveTo(cx - 2, cy + 1); ctx.lineTo(cx - 9, cy + 4); ctx.lineTo(cx - 2, cy + 5); ctx.fill(); // tail
+    ctx.beginPath(); ctx.ellipse(cx + 19, cy + 2.5, 5, 2.4, 0, 0, Math.PI * 2); ctx.fill();         // snout
+    ctx.fillStyle = "#fff";
+    ctx.beginPath(); ctx.arc(cx + 15, cy, 1.5, 0, Math.PI * 2); ctx.fill();                          // eye
+    ctx.fillStyle = "#1b2a14";
+    ctx.beginPath(); ctx.arc(cx + 15.4, cy, 0.7, 0, Math.PI * 2); ctx.fill();
+
+    ctx.restore();
+}
+
+// Tap the sign: walk to the bridge
+canvas.addEventListener("click", function (event) {
+    if (EDIT_MODE) return;
+    if (typeof isPlaceCardOpen === "function" && isPlaceCardOpen()) return;
+    const rect = canvas.getBoundingClientRect();
+    const mx = (event.clientX - rect.left - viewOffsetX) / viewScale;
+    const my = (event.clientY - rect.top - viewOffsetY) / viewScale;
+    const b = CROC_SIGN;
+    if (mx >= b.x - 8 && mx <= b.x + b.w + 8 && my >= b.y - 8 && my <= CROC_SIGN_POST_BOTTOM + 6) {
+        startAutoWalk(PLACE_LIST.find(function (item) { return item.node === "bridge"; }));
+    }
+});
+
 // ---------- Bridge popup: watch the animals of the Vishwamitri ----------
 // Shown while the visitor stands on the bridge (over the stream). The button opens the
 // "vishwamitri" information card (crocodile and turtle placeholders, see data/places-data.js).
@@ -820,6 +919,7 @@ bridgePopup.querySelector("#bridgePopupButton").addEventListener("click", functi
 });
 
 function checkBridge() {
+    if (autoWalk) { bridgePopup.style.display = "none"; return; }   // not while walking past
     const onBridge = Math.abs(visitor.x - BRIDGE_SPOT.x) <= BRIDGE_SPOT.halfW &&
                      Math.abs(visitor.y - BRIDGE_SPOT.y) <= BRIDGE_SPOT.halfH;
 
@@ -1561,7 +1661,6 @@ const VISITOR_START = { x: 800, y: 245 };   // ENTRY POINT: the ticket path, nex
 const VISITOR_RADIUS = 15;                  // size of the pointer (also its collision circle)
 const VISITOR_SCREEN_SPEED = 130;            // how fast the pointer moves ON THE SCREEN (pixels per second), the same on every device
 const VISITOR_COLOR = "#168bff";
-const JOYSTICK_SPEED_FACTOR = 0.72;           // 1 = same as keyboard, 0.72 = a bit slower on the phone joystick (lower = slower)
 
 // The visitor may walk on every path rectangle (the bridge is R3, so it is included)
 const walkableRects = pathRects.concat(ticketPathRects);
@@ -1612,6 +1711,7 @@ window.addEventListener("keydown", (e) => {
     const k = e.key.toLowerCase();
     if (MOVE_KEYS.includes(k)) {
         keys[k] = true;
+        if (autoWalk) cancelAutoWalk();      // the keyboard takes over from the list
         e.preventDefault();
     }
 });
@@ -1622,249 +1722,238 @@ window.addEventListener("blur", () => {
     for (const k in keys) keys[k] = false;     // forget keys if the tab loses focus
 });
 
-// ---------- Controls: joystick (mobile + tablet only, bottom right) ----------
-const JOY_SIZE = 110;          // biggest diameter of the joystick pad (screen pixels); smaller screens use less
-const JOY_DEAD_ZONE = 0.15;    // tiny thumb movements are ignored
-const joy = { x: 0, y: 0 };    // joystick direction, each from -1 to 1
+// ---------- Controls: list of places (replaces the joystick) ----------
+// A small "Places" button at the bottom opens a list. Tapping a place makes the visitor pointer
+// WALK there along the paths (it follows the same lines as the dotted routes). When it arrives,
+// the normal popup appears ("You reached ... / View Details"), and that opens the place card.
+// The keyboard (WASD / arrows) still works on a PC and stops the automatic walk.
 
-function createJoystick() {
-    // The joystick is always created, but only SHOWN while touch is being used
-    // (PC users use WASD). See "When is the joystick visible?" below.
-    //
-    // Look: a round wooden-and-cream pad with FOUR ARROWS and a big green thumb knob, and a small hint
-    // "Drag to move" that disappears after the first use. The arrow you push toward lights up.
+// The places in the list, in the order they are shown.
+// "node" = the spot on the path where the pointer stops (see WALK_NODES below).
+const PLACE_LIST = [
+    { node: "aviary", name: "Walk-in Aviary",     note: "Birds all around you",     icon: "\uD83E\uDD9C", color: "#8e24aa" },
+    { node: "museum", name: "Baroda Museum",      note: "Art, history and heritage", icon: "\uD83C\uDFDB\uFE0F", color: "#00897b" },
+    { node: "clock",  name: "Floral Clock",       note: "A living landmark",         icon: "\uD83D\uDD70\uFE0F", color: "#37474f" },
+    { node: "bridge", name: "Vishwamitri Bridge", note: "Look for the crocodiles",   icon: "\uD83D\uDC0A", color: "#1e7f9c" },
+    { node: "gate",   name: "Zoo Entrance",       note: "Meet the zoo animals",      icon: "\uD83E\uDD81", color: "#c62828" }
+];
 
-    // The pad size follows the screen: big enough for a thumb, never too big for a small phone.
-    function joySize() {
-        return Math.round(Math.max(84, Math.min(JOY_SIZE, Math.min(window.innerWidth, window.innerHeight) * 0.27)));
-    }
-    const JOY_BOTTOM = 36;        // gap below the pad (screen pixels): leaves room for the hint under it
-    const IDLE_OPACITY = 0.5;     // see-through while nobody touches it, so paths and signs stay visible
-    const HELD_OPACITY = 0.9;     // clearer while it is held
-    const KNOB_SHARE = 0.42;      // knob diameter, as a share of the pad
-    const TRAVEL_SHARE = 0.32;    // how far the knob may leave the centre, as a share of the pad
+// ---------- The walking network ----------
+// Points down the MIDDLE of the roads (same numbers as "routes" above). Names that are also in
+// PLACE_LIST are the stopping spots; each is close enough to its place to trigger the arrival popup.
+const WALK_NODES = {
+    gate:   { x: 150, y: 1170 },
+    n1:     { x: 270, y: 1170 },
+    n2:     { x: 270, y: 910 },
+    bridge: { x: 350, y: 910 },     // = BRIDGE_SPOT
+    n3:     { x: 430, y: 910 },
+    n4:     { x: 430, y: 650 },
+    n5:     { x: 640, y: 650 },
+    clock:  { x: 640, y: 567 },
+    n6:     { x: 640, y: 430 },
+    n7:     { x: 710, y: 430 },
+    museum: { x: 812, y: 430 },
+    tj:     { x: 710, y: 245 },     // junction of the ticket path
+    ticket: { x: 800, y: 245 },
+    aviary: { x: 710, y: 196 }
+};
+// Which points are joined by a straight piece of road
+const WALK_EDGES = [
+    ["gate", "n1"], ["n1", "n2"], ["n2", "bridge"], ["bridge", "n3"], ["n3", "n4"], ["n4", "n5"],
+    ["n5", "clock"], ["clock", "n6"], ["n6", "n7"], ["n7", "museum"], ["n7", "tj"],
+    ["tj", "ticket"], ["tj", "aviary"]
+];
 
-    // z-index 5 keeps the joystick BELOW the information card (the card uses 10)
-    const base = document.createElement("div");
-    base.id = "joystick";
-    base.setAttribute("role", "application");
-    base.setAttribute("aria-label", "Joystick: drag to move the pointer");
-    base.style.cssText =
-        "position:fixed; z-index:5; border-radius:50%;" +
-        "right:calc(14px + env(safe-area-inset-right, 0px));" +
-        `bottom:calc(${JOY_BOTTOM}px + env(safe-area-inset-bottom, 0px));` +
-        "background:radial-gradient(circle at 50% 35%, #fff8e3 0%, #f1dfb4 58%, #c9a56e 100%);" +
-        "border:3px solid #6f4524; opacity:" + IDLE_OPACITY + ";" +
-        "box-shadow:0 0 0 2px rgba(255,244,214,0.9), 0 4px 10px rgba(0,0,0,0.3), inset 0 2px 4px rgba(255,255,255,0.55);" +
-        "touch-action:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;" +
-        "-webkit-tap-highlight-color:transparent; cursor:grab;" +
-        "transition:transform 0.15s ease, box-shadow 0.15s ease, opacity 0.2s ease;";
+const AUTOWALK_SCREEN_SPEED = 300;   // pointer speed during the automatic walk (screen pixels per second)
 
-    // a thin inner ring: "the knob travels inside here"
-    const track = document.createElement("div");
-    track.style.cssText =
-        "position:absolute; inset:19%; border-radius:50%; pointer-events:none;" +
-        "border:2px solid rgba(78,49,25,0.22); background:rgba(78,49,25,0.06);";
-    base.appendChild(track);
+let autoWalk = null;                 // null = not walking, otherwise { node, name, points: [...] }
 
-    // four chevron arrows (up is always up on the screen, even when the map is turned a quarter turn on a phone)
-    const ARROWS = [
-        { dir: "up",    rot: 0,   css: "top:5%; left:50%; margin-left:-9%;" },
-        { dir: "down",  rot: 180, css: "bottom:5%; left:50%; margin-left:-9%;" },
-        { dir: "left",  rot: -90, css: "left:5%; top:50%; margin-top:-9%;" },
-        { dir: "right", rot: 90,  css: "right:5%; top:50%; margin-top:-9%;" }
-    ];
-    const arrowEls = {};
-    for (const a of ARROWS) {
-        const el = document.createElement("span");
-        el.innerHTML =
-            '<svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true">' +
-            '<path d="M4.5 15.5 L12 8 L19.5 15.5" fill="none" stroke="#fff4d6" stroke-width="6.2" stroke-linecap="round" stroke-linejoin="round"/>' +
-            '<path d="M4.5 15.5 L12 8 L19.5 15.5" fill="none" stroke="#5b3d20" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>' +
-            "</svg>";
-        el.style.cssText =
-            "position:absolute; width:20%; height:20%; pointer-events:none; opacity:0.8;" +
-            `transform:rotate(${a.rot}deg); transition:opacity 0.1s ease, filter 0.1s ease;` + a.css;
-        base.appendChild(el);
-        arrowEls[a.dir] = el;
-    }
-
-    // the thumb knob
-    const knob = document.createElement("div");
-    knob.style.cssText =
-        "position:absolute; left:50%; top:50%; border-radius:50%; pointer-events:none;" +
-        "background:radial-gradient(circle at 35% 28%, #8fe09a 0%, #3f8f4a 58%, #2a6a35 100%);" +
-        "border:3px solid #fff4d6;" +
-        "box-shadow:0 5px 10px rgba(0,0,0,0.4), inset 0 -4px 6px rgba(0,0,0,0.25), inset 0 3px 5px rgba(255,255,255,0.35);" +
-        "transition:transform 0.14s ease-out;";
-    const grip = document.createElement("div");           // small ring on the knob: looks like a thumb rest
-    grip.style.cssText =
-        "position:absolute; inset:27%; border-radius:50%; pointer-events:none;" +
-        "border:2px solid rgba(255,244,214,0.55);";
-    knob.appendChild(grip);
-    base.appendChild(knob);
-
-    // the hint under the pad, until the person has used the joystick once
-    let hintSeen = false;
-    try { hintSeen = localStorage.getItem("zooJoystickUsed") === "1"; } catch (err) { /* private mode: just show it */ }
-    const hint = document.createElement("div");
-    hint.textContent = "Drag to move";
-    hint.style.cssText =
-        "position:absolute; top:100%; left:50%; transform:translateX(-50%); margin-top:9px; pointer-events:none;" +
-        "white-space:nowrap; padding:3px 9px; border-radius:999px;" +
-        "font:800 11px 'Trebuchet MS', 'Segoe UI', system-ui, sans-serif; letter-spacing:0.03em;" +
-        "color:#fff4d6; background:rgba(78,49,25,0.9); border:2px solid #fff4d6;" +
-        "box-shadow:0 2px 6px rgba(0,0,0,0.3); transition:opacity 0.4s ease;" +
-        (hintSeen ? "opacity:0; display:none;" : "");
-    base.appendChild(hint);
-
-    document.body.appendChild(base);
-
-    // Size everything from the screen size (called now and on every resize)
-    let maxDist = 0;
-    const popupStyle = document.createElement("style");   // keeps the "You reached ..." popup ABOVE the pad
-    document.head.appendChild(popupStyle);
-
-    function layoutJoystick() {
-        const size = joySize();
-        base.style.width = size + "px";
-        base.style.height = size + "px";
-        const knobSize = Math.round(size * KNOB_SHARE);
-        knob.style.width = knobSize + "px";
-        knob.style.height = knobSize + "px";
-        knob.style.margin = (-knobSize / 2) + "px 0 0 " + (-knobSize / 2) + "px";
-        maxDist = size * TRAVEL_SHARE;
-        hint.style.fontSize = "11px";
-        popupStyle.textContent = touchMode
-            ? `.arrival-popup { bottom: calc(${JOY_BOTTOM + size + 16}px + env(safe-area-inset-bottom, 0px)) !important; }`
-            : "";
-    }
-
-    // ---- When is the joystick visible? ----
-    // We follow the input the person is REALLY using:
-    //   a finger touches the screen          -> show the joystick (phone / tablet)
-    //   the mouse moves, or WASD / arrows    -> hide it (PC: keyboard is enough)
-    // Before any input, the first guess comes from the device type.
-    function isPhoneLike() {
-        return typeof navigator !== "undefined" &&
-               /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-    }
-    function guessTouchDevice() {
-        return window.matchMedia("(pointer: coarse)").matches || isPhoneLike();
-    }
-
-    let touchMode = guessTouchDevice();
-
-    function applyJoystickVisibility() {
-        base.style.display = touchMode ? "block" : "none";
-        if (!touchMode) { joy.x = 0; joy.y = 0; }
-        layoutJoystick();
-    }
-
-    function setTouchMode(on) {
-        if (touchMode === on) return;
-        touchMode = on;
-        applyJoystickVisibility();
-    }
-
-    applyJoystickVisibility();
-
-    // finger / pen -> touch mode.  Mouse -> PC mode (but never on a phone-like device,
-    // because the browser's phone emulation also produces mouse events).
-    window.addEventListener("pointerdown", (e) => {
-        if (e.pointerType === "touch" || e.pointerType === "pen") setTouchMode(true);
-        else if (!isPhoneLike()) setTouchMode(false);
-    }, true);
-    window.addEventListener("pointermove", (e) => {
-        if (e.pointerType === "mouse" && !isPhoneLike()) setTouchMode(false);
-    }, { passive: true });
-    window.addEventListener("keydown", (e) => {
-        if (MOVE_KEYS.includes(e.key.toLowerCase())) setTouchMode(false);
-    });
-
-    // switching between PC and phone in the browser's device toolbar
-    window.matchMedia("(pointer: coarse)").addEventListener?.("change", () => setTouchMode(guessTouchDevice()));
-    window.addEventListener("resize", () => {
-        if (isPhoneLike()) setTouchMode(true);
-        layoutJoystick();
-    });
-
-    // ---- Dragging ----
-    let activePointer = null;
-    let centerX = 0, centerY = 0;
-
-    function lightArrows(nx, ny) {                         // the arrow you push toward lights up
-        const amount = { up: Math.max(0, -ny), down: Math.max(0, ny), left: Math.max(0, -nx), right: Math.max(0, nx) };
-        for (const dir in arrowEls) {
-            const v = Math.min(1, amount[dir] * 1.4);
-            arrowEls[dir].style.opacity = String(0.8 + 0.2 * v);
-            arrowEls[dir].style.filter = v > 0.35 ? "drop-shadow(0 0 4px #3f8f4a) brightness(1.15)" : "none";
-        }
-    }
-
-    function moveKnob(e) {
-        let dx = e.clientX - centerX;
-        let dy = e.clientY - centerY;
-
-        const dist = Math.hypot(dx, dy);
-        if (dist > maxDist) {                  // keep the knob inside the pad
-            dx *= maxDist / dist;
-            dy *= maxDist / dist;
-        }
-        knob.style.transform = `translate(${dx}px, ${dy}px)`;
-
-        const nx = dx / maxDist;
-        const ny = dy / maxDist;
-        if (Math.hypot(nx, ny) < JOY_DEAD_ZONE) {
-            joy.x = 0; joy.y = 0;
-            lightArrows(0, 0);
-        } else {
-            joy.x = nx; joy.y = ny;
-            lightArrows(nx, ny);
-        }
-    }
-
-    function releaseKnob() {
-        activePointer = null;
-        knob.style.transition = "transform 0.14s ease-out";     // the knob springs back to the centre
-        knob.style.transform = "translate(0px, 0px)";
-        base.style.transform = "none";
-        base.style.opacity = String(IDLE_OPACITY);          // see-through again
-        base.style.cursor = "grab";
-        joy.x = 0; joy.y = 0;
-        lightArrows(0, 0);
-    }
-
-    base.addEventListener("pointerdown", (e) => {
-        activePointer = e.pointerId;
-        base.setPointerCapture(e.pointerId);
-        const rect = base.getBoundingClientRect();           // measured once, so the knob does not jump while dragging
-        centerX = rect.left + rect.width / 2;
-        centerY = rect.top + rect.height / 2;
-        knob.style.transition = "none";                      // the knob follows the finger without delay
-        base.style.transform = "scale(1.04)";                // the pad grows a little: "you are holding it"
-        base.style.opacity = String(HELD_OPACITY);           // and becomes clearer while it is held
-        base.style.cursor = "grabbing";
-        if (navigator.vibrate) navigator.vibrate(8);         // tiny buzz on phones that support it
-        if (!hintSeen) {                                     // the hint has done its job
-            hintSeen = true;
-            hint.style.opacity = "0";
-            setTimeout(() => { hint.style.display = "none"; }, 450);
-            try { localStorage.setItem("zooJoystickUsed", "1"); } catch (err) { /* ignore */ }
-        }
-        moveKnob(e);
-        e.preventDefault();
-    });
-    base.addEventListener("pointermove", (e) => {
-        if (e.pointerId === activePointer) moveKnob(e);
-    });
-    base.addEventListener("pointerup", releaseKnob);
-    base.addEventListener("pointercancel", releaseKnob);
-    base.addEventListener("lostpointercapture", releaseKnob);
-    base.addEventListener("contextmenu", (e) => e.preventDefault());   // no long-press menu on the pad
+// Closest point to (px, py) on the segment a-b
+function closestPointOnSegment(px, py, a, b) {
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const len2 = dx * dx + dy * dy;
+    const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((px - a.x) * dx + (py - a.y) * dy) / len2));
+    return { x: a.x + t * dx, y: a.y + t * dy };
 }
 
-createJoystick();
+// Shortest way from the visitor to a node. Returns a list of points to walk through.
+function findWalkPoints(targetNode) {
+    // 1. where is the visitor on the road network? (the nearest point on any piece of road)
+    let start = null, startEdge = null, best = Infinity;
+    for (const edge of WALK_EDGES) {
+        const q = closestPointOnSegment(visitor.x, visitor.y, WALK_NODES[edge[0]], WALK_NODES[edge[1]]);
+        const d = Math.hypot(q.x - visitor.x, q.y - visitor.y);
+        if (d < best) { best = d; start = q; startEdge = edge; }
+    }
+
+    // 2. Dijkstra over the nodes, with "start" joined to both ends of its piece of road
+    const dist = {}, previous = {}, todo = new Set(Object.keys(WALK_NODES));
+    for (const name of todo) dist[name] = Infinity;
+    for (const name of startEdge) {
+        dist[name] = Math.hypot(WALK_NODES[name].x - start.x, WALK_NODES[name].y - start.y);
+        previous[name] = null;
+    }
+    const neighbours = {};
+    for (const name in WALK_NODES) neighbours[name] = [];
+    for (const [a, b] of WALK_EDGES) { neighbours[a].push(b); neighbours[b].push(a); }
+
+    while (todo.size) {
+        let current = null;
+        for (const name of todo) if (current === null || dist[name] < dist[current]) current = name;
+        if (dist[current] === Infinity || current === targetNode) break;
+        todo.delete(current);
+        for (const next of neighbours[current]) {
+            const d = dist[current] + Math.hypot(WALK_NODES[next].x - WALK_NODES[current].x,
+                                                 WALK_NODES[next].y - WALK_NODES[current].y);
+            if (d < dist[next]) { dist[next] = d; previous[next] = current; }
+        }
+    }
+
+    const points = [];
+    for (let n = targetNode; n; n = previous[n]) points.unshift(WALK_NODES[n]);
+    points.unshift(start);
+    return points;
+}
+
+function startAutoWalk(item) {
+    autoWalk = { node: item.node, name: item.name, points: findWalkPoints(item.node) };
+    hideProximityPopup();
+    bridgePopup.style.display = "none";
+    popupDismissedFor = null;
+    bridgeDismissed = false;
+    updatePlacesToggle();
+}
+
+function cancelAutoWalk() {
+    if (!autoWalk) return;
+    autoWalk = null;
+    updatePlacesToggle();
+}
+
+// Called every frame while walking (from updateVisitor)
+function stepAutoWalk(dt) {
+    let move = (AUTOWALK_SCREEN_SPEED / viewScale) * dt;   // screen pixels -> map units
+
+    while (move > 0 && autoWalk.points.length) {
+        const target = autoWalk.points[0];
+        const dx = target.x - visitor.x, dy = target.y - visitor.y;
+        const d = Math.hypot(dx, dy);
+
+        if (d > 0.01) {                                    // turn smoothly to face where it goes
+            let diff = Math.atan2(dy, dx) - visitor.heading;
+            diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+            visitor.heading += diff * Math.min(1, dt * 14);
+        }
+        if (d <= move) {
+            visitor.x = target.x;
+            visitor.y = target.y;
+            move -= d;
+            autoWalk.points.shift();
+        } else {
+            visitor.x += (dx / d) * move;
+            visitor.y += (dy / d) * move;
+            move = 0;
+        }
+    }
+
+    if (!autoWalk.points.length) {                         // arrived
+        autoWalk = null;
+        popupDismissedFor = null;                          // so the popup shows even for a place visited before
+        popupLeftAt = null;
+        bridgeDismissed = false;
+        hideProximityPopup();
+        updatePlacesToggle();                              // checkNearbyPlace() / checkBridge() now show the popup
+    }
+}
+
+// ---------- The "Places" button and the list ----------
+function createPlacesList() {
+    const toggle = document.createElement("button");
+    toggle.id = "placesToggle";
+    toggle.className = "places-toggle";
+    toggle.type = "button";
+    toggle.setAttribute("aria-haspopup", "true");
+    toggle.setAttribute("aria-expanded", "false");
+    toggle.setAttribute("aria-controls", "placesPanel");
+
+    const panel = document.createElement("div");
+    panel.id = "placesPanel";
+    panel.className = "places-panel";
+    panel.setAttribute("role", "menu");
+    panel.setAttribute("aria-label", "Places in the zoo");
+    panel.hidden = true;
+
+    const heading = document.createElement("div");
+    heading.className = "places-heading";
+    heading.textContent = "Where do you want to go?";
+    panel.appendChild(heading);
+
+    for (const item of PLACE_LIST) {
+        const row = document.createElement("button");
+        row.type = "button";
+        row.className = "places-item";
+        row.setAttribute("role", "menuitem");
+        row.style.setProperty("--place-color", item.color);
+
+        const icon = document.createElement("span");
+        icon.className = "places-item-icon";
+        icon.setAttribute("aria-hidden", "true");
+        icon.textContent = item.icon;
+
+        const text = document.createElement("span");
+        text.className = "places-item-text";
+        const name = document.createElement("b");
+        name.textContent = item.name;
+        const note = document.createElement("small");
+        note.textContent = item.note;
+        text.appendChild(name);
+        text.appendChild(note);
+
+        const go = document.createElement("span");
+        go.className = "places-item-go";
+        go.setAttribute("aria-hidden", "true");
+        go.textContent = "\u203A";
+
+        row.appendChild(icon);
+        row.appendChild(text);
+        row.appendChild(go);
+        row.addEventListener("click", function () {
+            setPlacesOpen(false);
+            startAutoWalk(item);
+        });
+        panel.appendChild(row);
+    }
+
+    document.body.appendChild(panel);
+    document.body.appendChild(toggle);
+
+    function setPlacesOpen(open) {
+        panel.hidden = !open;
+        toggle.setAttribute("aria-expanded", open ? "true" : "false");
+    }
+
+    toggle.addEventListener("click", function () { setPlacesOpen(panel.hidden); });
+    // tap outside the list, or press Escape: close it
+    document.addEventListener("pointerdown", function (e) {
+        if (!panel.hidden && !panel.contains(e.target) && !toggle.contains(e.target)) setPlacesOpen(false);
+    });
+    document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape") setPlacesOpen(false);
+    });
+
+    updatePlacesToggle();
+}
+
+// The button text: "Places", or "Walking to ..." while the pointer is on its way
+function updatePlacesToggle() {
+    const toggle = document.getElementById("placesToggle");
+    if (!toggle) return;
+    toggle.textContent = autoWalk ? "\uD83D\uDEB6 Walking\u2026" : "\uD83D\uDCCD Places";
+    toggle.setAttribute("aria-label", autoWalk ? "Walking to " + autoWalk.name + ". Open the list of places" : "Open the list of places");
+    toggle.classList.toggle("walking", !!autoWalk);
+}
+
+createPlacesList();
 
 // ---------- 2D transformation matrices (homogeneous coordinates) ----------
 // A point (x, y) is written as the column (x, y, 1), so translation, rotation and
@@ -1925,14 +2014,15 @@ function updateVisitor(dt) {
     // While an information card is open the visitor stands still
     if (typeof isPlaceCardOpen === "function" && isPlaceCardOpen()) return;
 
+    // Walking to a place chosen from the list
+    if (autoWalk) { stepAutoWalk(dt); return; }
+
     // 1. read the controls (y grows downward on the screen)
     let ix = 0, iy = 0;
     if (keys["a"] || keys["arrowleft"])  ix -= 1;
     if (keys["d"] || keys["arrowright"]) ix += 1;
     if (keys["w"] || keys["arrowup"])    iy -= 1;
     if (keys["s"] || keys["arrowdown"])  iy += 1;
-    ix += joy.x * JOYSTICK_SPEED_FACTOR;     // phone / tablet joystick: a bit slower than the keyboard
-    iy += joy.y * JOYSTICK_SPEED_FACTOR;
 
     const len = Math.hypot(ix, iy);
     if (len < 0.01) return;                    // not moving
@@ -2062,11 +2152,14 @@ function findReachedPlace() {
 // Called each frame. No notification is shown at the nearby distance.
 // Reaching a place shows the View Details prompt; it never opens the card itself.
 function checkNearbyPlace() {
+    // while walking to a place from the list, no popup appears for places on the way
+    if (autoWalk) { hideProximityPopup(); return; }
+
     arrivedPlace = findReachedPlace();
 
     if (!arrivedPlace) {
         // keep the popup for 1.5 s after the visitor steps away, so a tap is not lost
-        // when the joystick drifts a little while the finger goes to the button
+        // when the pointer drifts a little while the finger goes to the button
         if (popupPlaceId) {
             if (popupLeftAt === null) popupLeftAt = performance.now();
             if (performance.now() - popupLeftAt < 1500) return;
@@ -2345,6 +2438,7 @@ function drawMap() {
     drawPaths();        // 3. shadows + ticket brick path + tiled walking paths
     drawBridge();       // 4. bridge on top of R3
     drawScenery();      // 5. trees, bushes, flowers, rocks, lily pads
+    drawCrocSign();     //    "Visit Crocs" signboard next to the bridge
     drawButterflies();  // 6. butterflies fly over the scenery
     drawDottedRoute();  // 7. blue dots on top of the path and bridge
     drawPlaces();       // 8. place badges and labels (they stand beside the path)
@@ -2376,7 +2470,7 @@ function animateRoute(now) {
         dashOffset = 0;
     }
 
-    updateVisitor(dt);                   // the visitor moves with WASD / joystick
+    updateVisitor(dt);                   // the visitor moves with WASD, or walks to a place chosen from the list
     checkNearbyPlace();                  // show View Details only after reaching a place
     checkBridge();                       // on the bridge: offer to watch the Vishwamitri animals
 
