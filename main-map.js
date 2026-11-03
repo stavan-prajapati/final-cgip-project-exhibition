@@ -799,85 +799,97 @@ proximityPopupButton.addEventListener("click", function () {
 // ---------- Signboard at the bridge: "Visit Crocs" ----------
 // A wooden arrow sign planted in the grass next to the bridge, pointing at the stream.
 // Tapping it walks the pointer onto the bridge (same as choosing the bridge in the Places list).
-const CROC_SIGN = { x: 396, y: 948, w: 132, h: 40 };      // board rectangle (map units); the arrow tip is on the left
-const CROC_SIGN_POST_BOTTOM = 1004;                      // where the posts enter the ground
+const CROC_SIGN = { x: 396, y: 950, w: 196, h: 58 };      // board rectangle (map units); the arrow tip is on the left
+const CROC_SIGN_POST_BOTTOM = 1034;                      // where the posts enter the ground
 
 function drawCrocSign() {
     const b = CROC_SIGN;
-    const tip = 16;                                       // length of the arrow tip
+    const tip = 20;                                       // length of the arrow tip
+    const postTop = b.y + b.h - 4;
 
     ctx.save();
 
     // ground shadow
     ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
     ctx.beginPath();
-    ctx.ellipse(b.x + b.w / 2 + 4, CROC_SIGN_POST_BOTTOM + 2, b.w * 0.42, 5, 0, 0, Math.PI * 2);
+    ctx.ellipse(b.x + b.w / 2 + 4, CROC_SIGN_POST_BOTTOM + 2, b.w * 0.42, 6, 0, 0, Math.PI * 2);
     ctx.fill();
 
     // two posts
     ctx.fillStyle = POST_COLOR;
-    ctx.fillRect(b.x + 34, b.y + b.h - 4, 7, CROC_SIGN_POST_BOTTOM - (b.y + b.h - 4));
-    ctx.fillRect(b.x + b.w - 26, b.y + b.h - 4, 7, CROC_SIGN_POST_BOTTOM - (b.y + b.h - 4));
+    ctx.fillRect(b.x + 44, postTop, 9, CROC_SIGN_POST_BOTTOM - postTop);
+    ctx.fillRect(b.x + b.w - 40, postTop, 9, CROC_SIGN_POST_BOTTOM - postTop);
 
     // board: a plank with an arrow tip on the left
-    function boardPath(dx, dy) {
+    function boardPath(dy) {
         ctx.beginPath();
-        ctx.moveTo(b.x + dx, b.y + b.h / 2 + dy);
-        ctx.lineTo(b.x + tip + dx, b.y + dy);
-        ctx.lineTo(b.x + b.w - 6 + dx, b.y + dy);
-        ctx.quadraticCurveTo(b.x + b.w + dx, b.y + dy, b.x + b.w + dx, b.y + 6 + dy);
-        ctx.lineTo(b.x + b.w + dx, b.y + b.h - 6 + dy);
-        ctx.quadraticCurveTo(b.x + b.w + dx, b.y + b.h + dy, b.x + b.w - 6 + dx, b.y + b.h + dy);
-        ctx.lineTo(b.x + tip + dx, b.y + b.h + dy);
+        ctx.moveTo(b.x, b.y + b.h / 2 + dy);
+        ctx.lineTo(b.x + tip, b.y + dy);
+        ctx.lineTo(b.x + b.w - 8, b.y + dy);
+        ctx.quadraticCurveTo(b.x + b.w, b.y + dy, b.x + b.w, b.y + 8 + dy);
+        ctx.lineTo(b.x + b.w, b.y + b.h - 8 + dy);
+        ctx.quadraticCurveTo(b.x + b.w, b.y + b.h + dy, b.x + b.w - 8, b.y + b.h + dy);
+        ctx.lineTo(b.x + tip, b.y + b.h + dy);
         ctx.closePath();
     }
-    boardPath(0, 3);
+    boardPath(4);
     ctx.fillStyle = "rgba(0, 0, 0, 0.25)";
     ctx.fill();
 
-    boardPath(0, 0);
+    boardPath(0);
     const wood = ctx.createLinearGradient(0, b.y, 0, b.y + b.h);
     wood.addColorStop(0, "#9a6a3c");
     wood.addColorStop(1, "#6f4524");
     ctx.fillStyle = wood;
     ctx.fill();
     ctx.lineJoin = "round";
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 4;
     ctx.strokeStyle = RAIL_COLOR;
     ctx.stroke();
 
     // wood grain lines
     ctx.strokeStyle = "rgba(0, 0, 0, 0.12)";
-    ctx.lineWidth = 1;
+    ctx.lineWidth = 1.2;
     for (let i = 1; i <= 2; i++) {
         const gy = b.y + (b.h * i) / 3;
-        ctx.beginPath(); ctx.moveTo(b.x + tip + 4, gy); ctx.lineTo(b.x + b.w - 6, gy); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(b.x + tip + 6, gy); ctx.lineTo(b.x + b.w - 8, gy); ctx.stroke();
     }
 
     // two nails
     ctx.fillStyle = "#d9ad72";
-    ctx.beginPath(); ctx.arc(b.x + tip + 6, b.y + b.h / 2, 2, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(b.x + b.w - 8, b.y + b.h / 2, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(b.x + tip + 8, b.y + b.h / 2, 2.6, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(b.x + b.w - 10, b.y + b.h / 2, 2.6, 0, Math.PI * 2); ctx.fill();
 
-    // text
-    ctx.font = "800 17px " + PLACE_FONT_FAMILY;
+    // text (shrinks a little if the font on this device is wider than expected)
+    const textX = b.x + tip + 14;
+    const textMaxW = b.w - tip - 14 - 16;
+    let fontSize = 25;
+    ctx.font = "800 " + fontSize + "px " + PLACE_FONT_FAMILY;
+    const measured = ctx.measureText("Visit Crocs").width;
+    if (measured > textMaxW) {
+        fontSize = Math.floor(fontSize * textMaxW / measured);
+        ctx.font = "800 " + fontSize + "px " + PLACE_FONT_FAMILY;
+    }
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
     ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
-    ctx.fillText("Visit Crocs", b.x + tip + 12, b.y + b.h / 2 + 2);
+    ctx.fillText("Visit Crocs", textX, b.y + b.h / 2 + 3);
     ctx.fillStyle = "#fff4d6";
-    ctx.fillText("Visit Crocs", b.x + tip + 12, b.y + b.h / 2 + 1);
+    ctx.fillText("Visit Crocs", textX, b.y + b.h / 2 + 1.5);
 
-    // a tiny crocodile in the top-right corner of the board
-    const cx = b.x + b.w - 30, cy = b.y + 10;
+    // a little crocodile lying on top of the board, near the right end
+    ctx.save();
+    ctx.translate(b.x + b.w - 78, b.y - 5);
+    ctx.scale(1.4, 1.4);
     ctx.fillStyle = "#56743f";
-    ctx.beginPath(); ctx.ellipse(cx + 8, cy + 3, 10, 3.6, 0, 0, Math.PI * 2); ctx.fill();          // body
-    ctx.beginPath(); ctx.moveTo(cx - 2, cy + 1); ctx.lineTo(cx - 9, cy + 4); ctx.lineTo(cx - 2, cy + 5); ctx.fill(); // tail
-    ctx.beginPath(); ctx.ellipse(cx + 19, cy + 2.5, 5, 2.4, 0, 0, Math.PI * 2); ctx.fill();         // snout
+    ctx.beginPath(); ctx.ellipse(8, 3, 10, 3.6, 0, 0, Math.PI * 2); ctx.fill();                       // body
+    ctx.beginPath(); ctx.moveTo(-2, 1); ctx.lineTo(-10, 4); ctx.lineTo(-2, 5); ctx.fill();            // tail
+    ctx.beginPath(); ctx.ellipse(19, 2.5, 5.5, 2.4, 0, 0, Math.PI * 2); ctx.fill();                   // snout
     ctx.fillStyle = "#fff";
-    ctx.beginPath(); ctx.arc(cx + 15, cy, 1.5, 0, Math.PI * 2); ctx.fill();                          // eye
+    ctx.beginPath(); ctx.arc(15, 0, 1.6, 0, Math.PI * 2); ctx.fill();                                 // eye
     ctx.fillStyle = "#1b2a14";
-    ctx.beginPath(); ctx.arc(cx + 15.4, cy, 0.7, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(15.4, 0, 0.8, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
 
     ctx.restore();
 }
@@ -890,7 +902,7 @@ canvas.addEventListener("click", function (event) {
     const mx = (event.clientX - rect.left - viewOffsetX) / viewScale;
     const my = (event.clientY - rect.top - viewOffsetY) / viewScale;
     const b = CROC_SIGN;
-    if (mx >= b.x - 8 && mx <= b.x + b.w + 8 && my >= b.y - 8 && my <= CROC_SIGN_POST_BOTTOM + 6) {
+    if (mx >= b.x - 8 && mx <= b.x + b.w + 8 && my >= b.y - 24 && my <= CROC_SIGN_POST_BOTTOM + 6) {
         startAutoWalk(PLACE_LIST.find(function (item) { return item.node === "bridge"; }));
     }
 });

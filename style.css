@@ -768,24 +768,25 @@ canvas {
 .arrival-popup {
     position: fixed;
     left: 50%;
-    bottom: calc(80px + env(safe-area-inset-bottom, 0px));
-    z-index: 8;                         /* above the joystick (5), below the card (10) */
+    bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+    z-index: 8;                         /* above the Places button (7), below the card (10) */
 
     display: none;                      /* main-map.js shows it with display: flex */
     align-items: center;
     justify-content: center;
-    gap: 12px;
+    gap: 16px;
 
-    max-width: calc(100vw - 24px);
-    padding: 10px 12px 10px 14px;
+    width: max-content;
+    max-width: min(560px, calc(100vw - 24px));
+    padding: 16px 18px 16px 20px;
 
     color: #4a3217;
-    font: 700 15px/1.3 var(--zoo-font);
+    font: 700 19px/1.3 var(--zoo-font);
 
     background: linear-gradient(180deg, #fffaf0, #fff0cf);
     border: 3px solid var(--wood-light);
-    border-left: 9px solid var(--leaf);
-    border-radius: 16px;
+    border-left: 11px solid var(--leaf);
+    border-radius: 20px;
     box-shadow: 0 10px 26px rgba(0, 0, 0, 0.3);
 
     transform: translateX(-50%);
@@ -793,17 +794,17 @@ canvas {
 }
 
 .arrival-popup-icon {
-    font-size: 21px;
+    font-size: 30px;
 }
 
 .arrival-popup button {
     flex: none;
     border: 0;
-    border-radius: 11px;
-    padding: 10px 15px;
+    border-radius: 14px;
+    padding: 14px 20px;
 
     color: #fff;
-    font: 800 13px var(--zoo-font);
+    font: 800 17px var(--zoo-font);
     white-space: nowrap;
     cursor: pointer;
 
@@ -975,20 +976,21 @@ canvas {
 
 /* ---------- Places list (replaces the joystick) ---------- */
 
-/* bottom-right corner: free forest on the map, away from the title sign, the paths and the arrival popup */
+/* right edge, a bit above the bottom: easy to see and reach with the thumb, and the bottom stays free for the arrival popup.
+   It only covers forest on the map (no paths, no places). */
 .places-toggle {
     position: fixed;
     right: calc(12px + env(safe-area-inset-right, 0px));
-    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(136px + env(safe-area-inset-bottom, 0px));
     z-index: 7;                         /* below the arrival popup (8) and the card (10) */
 
     max-width: calc(100vw - 24px);
-    padding: 8px 13px;
+    padding: 11px 16px;
     overflow: hidden;
     text-overflow: ellipsis;
 
     color: var(--cream);
-    font: 800 13px var(--zoo-font);
+    font: 800 15px var(--zoo-font);
     white-space: nowrap;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
@@ -1022,13 +1024,13 @@ canvas {
 .places-panel {
     position: fixed;
     right: calc(12px + env(safe-area-inset-right, 0px));
-    bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(192px + env(safe-area-inset-bottom, 0px));
     z-index: 7;
     transform-origin: 100% 100%;
 
     width: min(360px, calc(100vw - 24px));
-    max-height: calc(100vh - 150px);
-    max-height: calc(100dvh - 150px);
+    max-height: calc(100vh - 250px);
+    max-height: calc(100dvh - 250px);
     overflow-y: auto;
     padding: 8px;
 
