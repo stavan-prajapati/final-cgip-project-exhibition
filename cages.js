@@ -2279,6 +2279,7 @@ function resizeCanvas() {
             if (el) reserveTop = Math.max(reserveTop, el.offsetTop + el.offsetHeight + 8 - margin);
         }
     }
+    if (narrow) reserveTop += 34;                                       // map a bit lower: the entrance path stays clear of the buttons
     const reserveBottom = narrow ? 70 : 0;                          // room for the "You reached ..." popup
     const fitH = freeH - reserveTop - reserveBottom;                    // height the map may use
     const fitCenterY = margin + reserveTop + fitH / 2;                  // where its middle sits on the screen

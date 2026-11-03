@@ -2710,5 +2710,5 @@ function prefetchPages(urls) {
     });
 }
 window.addEventListener("load", function () {
-    setTimeout(function () { prefetchPages(["aviary.html", "style.css?v=9", "aviary.css?v=9", "data/aviary-data.js?v=9", "bird-card.js?v=9", "aviary.js?v=9", "zoo.html", "zoo.css?v=9", "data/zoo-data.js?v=9", "animal-card.js?v=9", "zoo.js?v=9"]); }, 1500);
+    setTimeout(function () { prefetchPages(["aviary.html", "style.css?v=10", "aviary.css?v=10", "data/aviary-data.js?v=10", "bird-card.js?v=10", "aviary.js?v=10", "zoo.html", "zoo.css?v=10", "data/zoo-data.js?v=10", "animal-card.js?v=10", "zoo.js?v=10"]); }, 1500);
 });
