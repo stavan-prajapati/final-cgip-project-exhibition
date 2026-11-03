@@ -219,3 +219,16 @@ canvas {
         transition: none;
     }
 }
+/* ---------- Caged Birds page only: a smaller "You reached ..." popup so the bird names stay clear ---------- */
+@media (max-width: 600px), (max-height: 500px) {
+    html body .arrival-popup {
+        gap: 8px;
+        padding: 6px 8px 6px 10px;
+        font-size: 13px;
+        border-width: 2px;
+        border-left-width: 6px;
+        border-radius: 12px;
+    }
+    html body .arrival-popup-icon { display: none; }
+    html body .arrival-popup button { padding: 7px 11px; font-size: 13px; border-radius: 10px; }
+}

@@ -1913,7 +1913,7 @@ function placeSelectButton() {
     }
 
     // the board without its bottom strip
-    const bottomKeep = 190;                              // stays well above the bottom popup
+    const bottomKeep = 290;                              // stays well above the bottom popup
     const x0 = board.x + 10, y0 = board.y + 10;
     const x1 = board.x + board.w - 10 - w;
     const y1 = board.y + board.h - bottomKeep - h;
@@ -1932,10 +1932,11 @@ function placeSelectButton() {
         return false;
     };
 
+    const targetY = board.y + board.h * 0.27;              // a bit above the middle
     let best = null, bestScore = Infinity;
     for (let y = y1; y >= y0; y -= 10) {                  // from the bottom up
         for (let x = x0; x <= x1; x += 10) {              // from the left
-            const score = (y1 - y) * 0.6 + (x - x0);      // left side, a bit above the bottom
+            const score = Math.abs(y - targetY) + (x - x0) * 0.5;   // left side, up in the empty grass
             if (score >= bestScore) continue;
             if (hitsRects(x, y) || hitsPath(x, y)) continue;
             best = { left: x, top: y };
