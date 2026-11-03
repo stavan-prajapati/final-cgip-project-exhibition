@@ -104,6 +104,13 @@ const routes = [
     ]
 ];
 
+// Lift the "You reached ..." popups a little above the bottom edge of the screen
+(function () {
+    const lift = document.createElement("style");
+    lift.textContent = ".arrival-popup { bottom: calc(52px + env(safe-area-inset-bottom, 0px)) !important; }";
+    document.head.appendChild(lift);
+})();
+
 // ---------- Places (placeholders) ----------
 // x, y = CENTER of the round badge, in map units (same numbers as pathRects).
 // "id" links the place to its information card in data/places-data.js.
@@ -933,7 +940,7 @@ bridgePopup.querySelector("#bridgePopupButton").addEventListener("click", functi
 });
 
 function checkBridge() {
-    if (autoWalk || placesPanelOpen) { bridgePopup.style.display = "none"; return; }   // not while walking past, or while the list is open
+    if (autoWalk) { bridgePopup.style.display = "none"; return; }   // not while walking past
     const onBridge = Math.abs(visitor.x - BRIDGE_SPOT.x) <= BRIDGE_SPOT.halfW &&
                      Math.abs(visitor.y - BRIDGE_SPOT.y) <= BRIDGE_SPOT.halfH;
 
@@ -1781,7 +1788,6 @@ const WALK_EDGES = [
 const AUTOWALK_SCREEN_SPEED = 300;   // pointer speed during the automatic walk (screen pixels per second)
 
 let autoWalk = null;                 // null = not walking, otherwise { node, name, points: [...] }
-let placesPanelOpen = false;         // true while the list of places is open (the arrival popups hide, so they never cover the list)
 
 // Closest point to (px, py) on the segment a-b
 function closestPointOnSegment(px, py, a, b) {
@@ -1940,6 +1946,18 @@ function createPlacesList() {
         panel.appendChild(row);
     }
 
+    // The list opens in the CENTRE of the screen, over a dimmed background. It stands above the
+    // "You reached ..." popups (z-index 8), so a popup can never cover it.
+    const backdrop = document.createElement("div");
+    backdrop.style.cssText = "position:fixed; inset:0; z-index:9; background:rgba(20,12,4,0.5); display:none;";
+    document.body.appendChild(backdrop);
+    Object.assign(panel.style, {
+        left: "0", right: "0", top: "0", bottom: "0", margin: "auto",
+        height: "fit-content", zIndex: "10", transformOrigin: "50% 50%"
+    });
+    panel.style.maxHeight = "calc(100vh - 32px)";
+    panel.style.maxHeight = "calc(100dvh - 32px)";      // (ignored by old browsers, which keep the line above)
+
     document.body.appendChild(panel);
     document.body.appendChild(toggle);
 
@@ -1981,19 +1999,9 @@ function createPlacesList() {
     }
 
     function setPlacesOpen(open) {
-        if (open) {                                           // open just under the button, as far as the screen allows
-            const r = toggle.getBoundingClientRect();
-            const top = Math.min(r.bottom + 10, Math.max(8, window.innerHeight - 160));
-            panel.style.top = top + "px";
-            panel.style.maxHeight = Math.max(140, window.innerHeight - top - 16) + "px";
-        }
         panel.hidden = !open;
+        backdrop.style.display = open ? "block" : "none";
         toggle.setAttribute("aria-expanded", open ? "true" : "false");
-        placesPanelOpen = open;
-        if (open) {                                           // the "You reached ..." popup must not cover the list
-            hideProximityPopup();
-            bridgePopup.style.display = "none";
-        }
     }
 
     toggle.addEventListener("click", function () {
@@ -2250,7 +2258,7 @@ function findReachedPlace() {
 // Reaching a place shows the View Details prompt; it never opens the card itself.
 function checkNearbyPlace() {
     // while walking to a place from the list, no popup appears for places on the way
-    if (autoWalk || placesPanelOpen) { hideProximityPopup(); return; }   // not while walking, or while the list is open
+    if (autoWalk) { hideProximityPopup(); return; }
 
     arrivedPlace = findReachedPlace();
 

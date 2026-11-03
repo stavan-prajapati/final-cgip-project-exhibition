@@ -1457,6 +1457,13 @@ const cageMarker = {
     view.x = minX; view.y = minY; view.w = maxX - minX; view.h = maxY - minY;
 })();
 
+// Lift the "You reached ..." popups a little above the bottom edge of the screen
+(function () {
+    const lift = document.createElement("style");
+    lift.textContent = ".arrival-popup { bottom: calc(52px + env(safe-area-inset-bottom, 0px)) !important; }";
+    document.head.appendChild(lift);
+})();
+
 const BIRD_TRIGGER = 80;          // how close the visitor must be (map units) to get the popup
 
 function birdName(id) {
@@ -1837,7 +1844,7 @@ function updateBirdPopup() {
         if (Math.hypot(visitor.x - forcedBird.x, visitor.y - forcedBird.y) < 1) found = forcedBird.id;
         else forcedBird = null;
     }
-    if (autoWalk || selectPanelOpen) found = null; // no popup while walking past, or while the list is open
+    if (autoWalk) found = null;                    // no popup while walking past
     if (found === birdNearby) return;              // nothing changed
     birdNearby = found;
     if (found) {
@@ -1910,7 +1917,6 @@ const birdStops = birdSpots.map(function (spot) {
 }).sort(function (a, b) { return a.s - b.s; });
 
 let autoWalk = null;      // null = not walking, otherwise { id, name, s, targetS, dir, lead }
-let selectPanelOpen = false;   // true while the list is open (the popups hide, so they never cover the list)
 let forcedBird = null;    // the bird we just walked to: its popup is shown even if another bird is a little closer
 
 function turnVisitorTo(angle, dt) {
@@ -2046,6 +2052,18 @@ function createSelectList() {
         panel.appendChild(row);
     }
 
+    // The list opens in the CENTRE of the screen, over a dimmed background. It stands above the
+    // "You reached ..." popups (z-index 8), so a popup can never cover it.
+    const backdrop = document.createElement("div");
+    backdrop.style.cssText = "position:fixed; inset:0; z-index:9; background:rgba(20,12,4,0.5); display:none;";
+    document.body.appendChild(backdrop);
+    Object.assign(panel.style, {
+        left: "0", right: "0", top: "0", bottom: "0", margin: "auto",
+        height: "fit-content", zIndex: "10", transformOrigin: "50% 50%"
+    });
+    panel.style.maxHeight = "calc(100vh - 32px)";
+    panel.style.maxHeight = "calc(100dvh - 32px)";      // (ignored by old browsers, which keep the line above)
+
     document.body.appendChild(panel);
     document.body.appendChild(toggle);
 
@@ -2060,9 +2078,8 @@ function createSelectList() {
 
     function setSelectOpen(open) {
         panel.hidden = !open;
+        backdrop.style.display = open ? "block" : "none";
         toggle.setAttribute("aria-expanded", open ? "true" : "false");
-        selectPanelOpen = open;
-        if (open) placeSelectPanel();
     }
     window.setSelectOpen = setSelectOpen;
 
@@ -2081,21 +2098,6 @@ function createSelectList() {
     updateSelectToggle();
 }
 
-// The list opens just under the button (centred on it, never leaving the screen)
-function placeSelectPanel() {
-    const toggle = document.getElementById("selectToggle"), panel = document.getElementById("selectPanel");
-    if (!toggle || !panel || panel.hidden) return;
-    const r = toggle.getBoundingClientRect();
-    const w = panel.offsetWidth;
-    const left = Math.max(8, Math.min(window.innerWidth - w - 8, r.left + r.width / 2 - w / 2));
-    const top = r.bottom + 10;
-    panel.style.right = "auto";
-    panel.style.left = left + "px";
-    panel.style.top = top + "px";
-    panel.style.transformOrigin = "50% 0";
-    panel.style.maxHeight = Math.max(140, window.innerHeight - top - 16) + "px";
-}
-
 // Where the button stands: top centre, next to the sign and the Back button.
 // On a narrow phone there is no room between them, so it gets its own row under them.
 function positionSelectButton() {
@@ -2112,7 +2114,6 @@ function positionSelectButton() {
     }
     toggle.style.top = Math.round(top) + "px";
     toggle.style.left = Math.round(Math.max(4, (window.innerWidth - toggle.offsetWidth) / 2)) + "px";
-    placeSelectPanel();
 }
 
 // The button text: "Select Location", or "Walking..." while the pointer is on its way
@@ -2344,11 +2345,6 @@ let cageNearby = false;
 let cageLeftAt = null;
 
 function updateCagePopup() {
-    if (selectPanelOpen) {                           // the list is open: the popup must not cover it
-        cageNearby = false;
-        cagePopup.style.display = "none";
-        return;
-    }
     const reached = !autoWalk && Math.hypot(visitor.x - cageMarker.point.x, visitor.y - cageMarker.point.y) <= cageMarker.trigger;
     const cardOpen = typeof isBirdCardOpen === "function" && isBirdCardOpen();
     let show = reached && !cardOpen;
