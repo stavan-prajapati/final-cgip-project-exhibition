@@ -1837,7 +1837,7 @@ function updateBirdPopup() {
         if (Math.hypot(visitor.x - forcedBird.x, visitor.y - forcedBird.y) < 1) found = forcedBird.id;
         else forcedBird = null;
     }
-    if (autoWalk) found = null;                    // no popup while walking past
+    if (autoWalk || selectPanelOpen) found = null; // no popup while walking past, or while the list is open
     if (found === birdNearby) return;              // nothing changed
     birdNearby = found;
     if (found) {
@@ -1910,6 +1910,7 @@ const birdStops = birdSpots.map(function (spot) {
 }).sort(function (a, b) { return a.s - b.s; });
 
 let autoWalk = null;      // null = not walking, otherwise { id, name, s, targetS, dir, lead }
+let selectPanelOpen = false;   // true while the list is open (the popups hide, so they never cover the list)
 let forcedBird = null;    // the bird we just walked to: its popup is shown even if another bird is a little closer
 
 function turnVisitorTo(angle, dt) {
@@ -2060,6 +2061,7 @@ function createSelectList() {
     function setSelectOpen(open) {
         panel.hidden = !open;
         toggle.setAttribute("aria-expanded", open ? "true" : "false");
+        selectPanelOpen = open;
         if (open) placeSelectPanel();
     }
     window.setSelectOpen = setSelectOpen;
@@ -2342,6 +2344,11 @@ let cageNearby = false;
 let cageLeftAt = null;
 
 function updateCagePopup() {
+    if (selectPanelOpen) {                           // the list is open: the popup must not cover it
+        cageNearby = false;
+        cagePopup.style.display = "none";
+        return;
+    }
     const reached = !autoWalk && Math.hypot(visitor.x - cageMarker.point.x, visitor.y - cageMarker.point.y) <= cageMarker.trigger;
     const cardOpen = typeof isBirdCardOpen === "function" && isBirdCardOpen();
     let show = reached && !cardOpen;

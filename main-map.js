@@ -933,7 +933,7 @@ bridgePopup.querySelector("#bridgePopupButton").addEventListener("click", functi
 });
 
 function checkBridge() {
-    if (autoWalk) { bridgePopup.style.display = "none"; return; }   // not while walking past
+    if (autoWalk || placesPanelOpen) { bridgePopup.style.display = "none"; return; }   // not while walking past, or while the list is open
     const onBridge = Math.abs(visitor.x - BRIDGE_SPOT.x) <= BRIDGE_SPOT.halfW &&
                      Math.abs(visitor.y - BRIDGE_SPOT.y) <= BRIDGE_SPOT.halfH;
 
@@ -1781,6 +1781,7 @@ const WALK_EDGES = [
 const AUTOWALK_SCREEN_SPEED = 300;   // pointer speed during the automatic walk (screen pixels per second)
 
 let autoWalk = null;                 // null = not walking, otherwise { node, name, points: [...] }
+let placesPanelOpen = false;         // true while the list of places is open (the arrival popups hide, so they never cover the list)
 
 // Closest point to (px, py) on the segment a-b
 function closestPointOnSegment(px, py, a, b) {
@@ -1988,6 +1989,11 @@ function createPlacesList() {
         }
         panel.hidden = !open;
         toggle.setAttribute("aria-expanded", open ? "true" : "false");
+        placesPanelOpen = open;
+        if (open) {                                           // the "You reached ..." popup must not cover the list
+            hideProximityPopup();
+            bridgePopup.style.display = "none";
+        }
     }
 
     toggle.addEventListener("click", function () {
@@ -2244,7 +2250,7 @@ function findReachedPlace() {
 // Reaching a place shows the View Details prompt; it never opens the card itself.
 function checkNearbyPlace() {
     // while walking to a place from the list, no popup appears for places on the way
-    if (autoWalk) { hideProximityPopup(); return; }
+    if (autoWalk || placesPanelOpen) { hideProximityPopup(); return; }   // not while walking, or while the list is open
 
     arrivedPlace = findReachedPlace();
 
