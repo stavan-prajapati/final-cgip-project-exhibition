@@ -321,6 +321,8 @@ function resizeCanvas() {
 
     buildOutside(screenWidth, screenHeight, pixelRatio);   // forest around the board (wide screens)
 
+    positionPlacesToggle();                                // the Places button follows the map
+
     drawMap();
 }
 
@@ -1940,6 +1942,12 @@ function createPlacesList() {
     document.body.appendChild(toggle);
 
     function setPlacesOpen(open) {
+        if (open) {                                           // open just under the button, as far as the screen allows
+            const r = toggle.getBoundingClientRect();
+            const top = Math.min(r.bottom + 10, Math.max(8, window.innerHeight - 160));
+            panel.style.top = top + "px";
+            panel.style.maxHeight = Math.max(140, window.innerHeight - top - 16) + "px";
+        }
         panel.hidden = !open;
         toggle.setAttribute("aria-expanded", open ? "true" : "false");
     }
@@ -1956,6 +1964,22 @@ function createPlacesList() {
     updatePlacesToggle();
 }
 
+// ---------- Where the Places button stands ----------
+// It sits ON THE MAP, in the empty grass just below the Clock (map units, centre of the button).
+// It is placed from these numbers every time the screen size changes, so it stays in the same spot of the map.
+const PLACES_BUTTON_SPOT = { x: 740, y: 790 };
+
+function positionPlacesToggle() {
+    const toggle = document.getElementById("placesToggle");
+    if (!toggle) return;
+    let left = viewOffsetX + PLACES_BUTTON_SPOT.x * viewScale;
+    const top = viewOffsetY + PLACES_BUTTON_SPOT.y * viewScale;
+    const half = toggle.offsetWidth / 2 + 8;                 // never leave the screen
+    left = Math.max(half, Math.min(window.innerWidth - half, left));
+    toggle.style.left = left + "px";
+    toggle.style.top = top + "px";
+}
+
 // The button text: "Places", or "Walking to ..." while the pointer is on its way
 function updatePlacesToggle() {
     const toggle = document.getElementById("placesToggle");
@@ -1963,6 +1987,7 @@ function updatePlacesToggle() {
     toggle.textContent = autoWalk ? "\uD83D\uDEB6 Walking\u2026" : "\uD83D\uDCCD Places";
     toggle.setAttribute("aria-label", autoWalk ? "Walking to " + autoWalk.name + ". Open the list of places" : "Open the list of places");
     toggle.classList.toggle("walking", !!autoWalk);
+    positionPlacesToggle();
 }
 
 createPlacesList();
