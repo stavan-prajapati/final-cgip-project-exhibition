@@ -285,11 +285,43 @@ function createBrickPattern() {
 
 const brickPattern = createBrickPattern();
 
+// ---------- Speed: self-tuning picture quality ----------
+// The canvas is drawn at the screen's pixel ratio (max 2). If the device cannot keep up (the loop below notices
+// slow frames), the cap is lowered to 1.5 and then 1, which makes every frame 2-4x cheaper.
+let dprCap = 2;
+let slowFrames = 0;
+
+// ---------- Speed: grass + tufts + flowers painted ONCE ----------
+// The grass tufts and flowers never change, but stroking ~2700 little shapes took ~37 ms per frame on a phone.
+// Now they are painted once (after every resize) into this picture, and each frame only copies it.
+let groundLayer = null;
+
+function buildGroundLayer() {
+    drawGrass();
+    drawGroundDetails();
+    if (!groundLayer) groundLayer = document.createElement("canvas");
+    groundLayer.width = canvas.width;       // (also clears it)
+    groundLayer.height = canvas.height;
+    groundLayer.getContext("2d").drawImage(canvas, 0, 0);
+}
+
+function drawGroundLayer() {
+    if (!groundLayer) {                     // safety net: draw it the slow way
+        drawGrass();
+        drawGroundDetails();
+        return;
+    }
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(groundLayer, 0, 0);
+    ctx.restore();
+}
+
 // Full-screen canvas: the map is scaled to fit the screen and centered
 function resizeCanvas() {
     const screenWidth = window.innerWidth;
     const screenHeight = window.innerHeight;
-    const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+    const pixelRatio = Math.min(window.devicePixelRatio || 1, dprCap);
 
     // Canvas covers the entire screen
     canvas.style.width = `${screenWidth}px`;
@@ -327,6 +359,7 @@ function resizeCanvas() {
     viewOffsetY = offsetY;
 
     buildOutside(screenWidth, screenHeight, pixelRatio);   // forest around the board (wide screens)
+    buildGroundLayer();                                    // grass + tufts + flowers, painted once
 
     positionPlacesToggle();                                // the Places button follows the map
 
@@ -2505,7 +2538,7 @@ function buildOutside(screenW, screenH, pixelRatio) {
 }
 
 function drawOutside() {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, dprCap);
     const t = performance.now() / 1000;
 
     ctx.save();
@@ -2609,8 +2642,7 @@ function drawMap() {
     drawOutside();      // 0. forest outside the board
     ctx.save();
     clipToBoard();      //    everything below is only visible inside the board
-    drawGrass();        // 1. grass
-    drawGroundDetails();//    small grass tufts and petal flowers (covered by water, paths and trees)
+    drawGroundLayer();  // 1. grass + small tufts and petal flowers (one cached picture, see buildGroundLayer)
     drawWater();        // 2. lake and stream (under the paths and the bridge)
     drawPaths();        // 3. shadows + ticket brick path + tiled walking paths
     drawBridge();       // 4. bridge on top of R3
@@ -2642,6 +2674,18 @@ function animateRoute(now) {
     const dt = lastTime === null ? 0 : Math.min((now - lastTime) / 1000, 0.1);
     lastTime = now;
 
+    // Self-tuning: if frames keep arriving late (under ~20 fps) the device is struggling,
+    // so lower the picture quality one step (see dprCap). It never goes back up, so it cannot flip-flop.
+    // (The first 3 seconds are ignored: the page is still loading then.)
+    if (now > 3000 && dt > 0.05) slowFrames++;
+    else if (dt > 0 && dt < 0.04 && slowFrames > 0) slowFrames--;
+    const effectiveRatio = Math.min(window.devicePixelRatio || 1, dprCap);
+    if (slowFrames > 20 && effectiveRatio > 1) {
+        dprCap = effectiveRatio > 1.5 ? 1.5 : 1;
+        slowFrames = 0;
+        resizeCanvas();
+    }
+
     dashOffset += 0.5;
     if (dashOffset >= 15) {
         dashOffset = 0;
@@ -2659,7 +2703,12 @@ function animateRoute(now) {
 // at the location; the visitor must click View Details to open the full card.
 
 // Resize canvas when window changes
-window.addEventListener("resize", resizeCanvas);
+// (debounced: a phone fires "resize" many times while the address bar slides, and every call rebuilds the cached pictures)
+let resizeTimer = null;
+window.addEventListener("resize", function () {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(resizeCanvas, 120);
+});
 
 // Start map. No arrival popup or information card appears on page load.
 hideProximityPopup();
@@ -2710,5 +2759,5 @@ function prefetchPages(urls) {
     });
 }
 window.addEventListener("load", function () {
-    setTimeout(function () { prefetchPages(["aviary.html", "style.css?v=10", "aviary.css?v=10", "data/aviary-data.js?v=10", "bird-card.js?v=10", "aviary.js?v=10", "zoo.html", "zoo.css?v=10", "data/zoo-data.js?v=10", "animal-card.js?v=10", "zoo.js?v=10"]); }, 1500);
+    setTimeout(function () { prefetchPages(["aviary.html", "style.css?v=11", "aviary.css?v=11", "data/aviary-data.js?v=11", "bird-card.js?v=11", "aviary.js?v=11", "zoo.html", "zoo.css?v=11", "data/zoo-data.js?v=11", "animal-card.js?v=11", "zoo.js?v=11"]); }, 1500);
 });

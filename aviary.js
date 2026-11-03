@@ -2713,8 +2713,14 @@ function drawMap() {
 let viewScale = 1;          // map unit -> screen pixel
 let viewRotated = false;    // true = the map is shown turned a quarter turn
 
+// ---------- Speed: self-tuning picture quality ----------
+// The canvas is drawn at the screen's pixel ratio (max 2). If the device cannot keep up (the loop below notices
+// slow frames), the cap is lowered to 1.5 and then 1, which makes every frame 2-4x cheaper.
+let dprCap = 2;
+let slowFrames = 0;
+
 function resizeCanvas() {
-    const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+    const pixelRatio = Math.min(window.devicePixelRatio || 1, dprCap);
     const screenWidth = canvas.clientWidth;
     const screenHeight = canvas.clientHeight;
 
@@ -2817,6 +2823,18 @@ function animateRoute(now) {
     const dt = lastTime === null ? 0 : Math.min((now - lastTime) / 1000, 0.1);
     lastTime = now;
 
+    // Self-tuning: if frames keep arriving late (under ~20 fps) the device is struggling,
+    // so lower the picture quality one step (see dprCap). It never goes back up, so it cannot flip-flop.
+    // (The first 3 seconds are ignored: the page is still loading then.)
+    if (now > 3000 && dt > 0.05) slowFrames++;
+    else if (dt > 0 && dt < 0.04 && slowFrames > 0) slowFrames--;
+    const effectiveRatio = Math.min(window.devicePixelRatio || 1, dprCap);
+    if (slowFrames > 20 && effectiveRatio > 1) {
+        dprCap = effectiveRatio > 1.5 ? 1.5 : 1;
+        slowFrames = 0;
+        resizeCanvas();
+    }
+
     dashOffset += 0.5;
     if (dashOffset >= 15) {
         dashOffset = 0;
@@ -2831,7 +2849,12 @@ function animateRoute(now) {
 }
 
 // Resize canvas when window changes
-window.addEventListener("resize", resizeCanvas);
+// (debounced: a phone fires "resize" many times while the address bar slides, and every call rebuilds the cached pictures)
+let resizeTimer = null;
+window.addEventListener("resize", function () {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(resizeCanvas, 120);
+});
 
 // Start map
 resizeCanvas();
@@ -2873,5 +2896,5 @@ function prefetchPages(urls) {
     });
 }
 window.addEventListener("load", function () {
-    setTimeout(function () { prefetchPages(["cages.html", "style.css?v=10", "aviary.css?v=10", "cages.css?v=10", "data/aviary-data.js?v=10", "bird-card.js?v=10", "cages.js?v=10", "index.html?from=aviary"]); }, 1500);
+    setTimeout(function () { prefetchPages(["cages.html", "style.css?v=11", "aviary.css?v=11", "cages.css?v=11", "data/aviary-data.js?v=11", "bird-card.js?v=11", "cages.js?v=11", "index.html?from=aviary"]); }, 1500);
 });
