@@ -2170,7 +2170,7 @@ function resizeCanvas() {
             if (el) reserveTop = Math.max(reserveTop, el.offsetTop + el.offsetHeight + 8 - margin);
         }
     }
-    const reserveBottom = narrow ? 64 : 0;                          // room for the "You reached ..." popup
+    const reserveBottom = narrow ? 84 : 0;                          // room for the "You reached ..." popup
     const fitH = freeH - reserveTop - reserveBottom;                    // height the map may use
     const fitCenterY = margin + reserveTop + fitH / 2;                  // where its middle sits on the screen
 

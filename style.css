@@ -1267,3 +1267,30 @@ canvas {
         white-space: nowrap;
     }
 }
+
+/* ---------- Phones: bigger, easier-to-read popup, buttons and title board (same on every page) ---------- */
+@media (max-width: 600px), (max-height: 500px) {
+    html body .arrival-popup {
+        gap: 10px;
+        padding: 10px 12px 10px 14px;
+        font-size: 16px;
+        border-width: 3px;
+        border-left-width: 8px;
+        border-radius: 16px;
+        max-width: calc(100vw - 16px);
+    }
+    html body .arrival-popup-icon { display: block; font-size: 24px; }
+    html body .arrival-popup button { padding: 10px 16px; font-size: 15px; border-radius: 12px; }
+
+    html body .places-toggle {
+        padding: 10px 18px;
+        font-size: 16px;
+        border-width: 3px;
+        border-radius: 14px;
+    }
+
+    html body .zoo-title { padding: 5px 12px 6px 7px; gap: 8px; border-radius: 11px; }
+    html body .zoo-title-icon { width: 32px; height: 32px; font-size: 16px; }
+    html body .zoo-title-text h1 { font-size: 18px; }
+    html body .zoo-title-text p { font-size: 8.5px; margin-top: 2px; }
+}
