@@ -1234,3 +1234,36 @@ canvas {
     box-shadow: 0 3px 0 rgba(0, 0, 0, 0.25);
 }
 .places-close:active { transform: translateY(2px); box-shadow: none; }
+
+/* ---------- Title sign: ONE size on phones, on every page (visible, not too big) ---------- */
+@media (max-width: 600px), (max-height: 500px) {
+    html body .zoo-title {
+        top: calc(8px + env(safe-area-inset-top, 0px));
+        left: calc(8px + env(safe-area-inset-left, 0px));
+        gap: 6px;
+        width: max-content;
+        max-width: calc(100vw - 16px);
+        padding: 4px 10px 5px 6px;
+        border-width: 2px;
+        border-radius: 10px;
+    }
+    html body .zoo-title::before { left: 16px; top: -10px; height: 9px; }
+    html body .zoo-title::after  { right: 16px; top: -10px; height: 9px; }
+    html body .zoo-title-icon {
+        width: 26px;
+        height: 26px;
+        font-size: 13px;
+        border-width: 2px;
+    }
+    html body .zoo-title-text h1 {
+        font-size: 15px;
+        line-height: 1.1;
+        white-space: nowrap;
+    }
+    html body .zoo-title-text p {
+        margin-top: 2px;
+        font-size: 7.5px;
+        letter-spacing: 0.14em;
+        white-space: nowrap;
+    }
+}

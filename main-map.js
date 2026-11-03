@@ -723,7 +723,12 @@ function drawPlace(place, index, t) {
     const labelW = widest + LABEL_PADDING_X * 2;
     const labelH = lines.length * PLACE_LINE_HEIGHT + 12;
     const labelX = place.x - labelW / 2;
-    const labelY = place.y + R + 14;
+    // If the name + "Touch to visit" tag would stick out below the board (Zoo Entrance on a wide screen),
+    // they stand ABOVE the badge instead.
+    const stackH = labelH + (isVisitablePlace(place) ? 6 + 22 + 6 : 6);
+    const boardBottom = boardY + boardH - 12 / viewScale;
+    const labelAbove = place.y + R + 14 + stackH > boardBottom;
+    const labelY = labelAbove ? place.y - R - 14 - stackH + 6 : place.y + R + 14;
 
     // soft shadow under the label, then the white label with a colored border
     roundedRect(labelX, labelY + 3, labelW, labelH, 10);
@@ -740,11 +745,13 @@ function drawPlace(place, index, t) {
     // tap area = a box around the badge and the label (a little bigger, easier for fingers)
     const left = Math.min(place.x - R - 4, labelX) - 6;
     const right = Math.max(place.x + R + 4, labelX + labelW) + 6;
+    const hitTop = Math.min(place.y - R - 10, labelY - 6);
+    const hitBottom = Math.max(place.y + R + 10, labelY + labelH + 6);
     place.hitBox = {
         x: left,
-        y: place.y - R - 10,
+        y: hitTop,
         w: right - left,
-        h: labelY + labelH + 6 - (place.y - R - 10)
+        h: hitBottom - hitTop
     };
 
     // the name itself
@@ -777,7 +784,7 @@ function drawPlace(place, index, t) {
         ctx.fillText(tag, place.x, tagY + tagH / 2 + 1);
         place.hitBox.w = Math.max(place.hitBox.w, tagW + 12);
         place.hitBox.x = Math.min(place.hitBox.x, place.x - tagW / 2 - 6);
-        place.hitBox.h = tagY + tagH + 6 - place.hitBox.y;
+        place.hitBox.h = Math.max(hitBottom, tagY + tagH + 6) - place.hitBox.y;
     }
 
     if ("letterSpacing" in ctx) ctx.letterSpacing = "0px";
@@ -2087,7 +2094,7 @@ function createPlacesList() {
 // ---------- Where the Places button stands ----------
 // It sits ON THE MAP, in the empty grass just below the Clock (map units, centre of the button).
 // It is placed from these numbers every time the screen size changes, so it stays in the same spot of the map.
-const PLACES_BUTTON_SPOT = { x: 290, y: 560 };   // above the north pond
+const PLACES_BUTTON_SPOT = { x: 290, y: 480 };   // well above the north pond
 
 function positionPlacesToggle() {
     const toggle = document.getElementById("placesToggle");
@@ -2703,5 +2710,5 @@ function prefetchPages(urls) {
     });
 }
 window.addEventListener("load", function () {
-    setTimeout(function () { prefetchPages(["aviary.html", "style.css?v=5", "aviary.css?v=5", "data/aviary-data.js?v=5", "bird-card.js?v=5", "aviary.js?v=5", "zoo.html", "zoo.css?v=5", "data/zoo-data.js?v=5", "animal-card.js?v=5", "zoo.js?v=5"]); }, 1500);
+    setTimeout(function () { prefetchPages(["aviary.html", "style.css?v=6", "aviary.css?v=6", "data/aviary-data.js?v=6", "bird-card.js?v=6", "aviary.js?v=6", "zoo.html", "zoo.css?v=6", "data/zoo-data.js?v=6", "animal-card.js?v=6", "zoo.js?v=6"]); }, 1500);
 });

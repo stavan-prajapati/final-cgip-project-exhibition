@@ -2873,5 +2873,5 @@ function prefetchPages(urls) {
     });
 }
 window.addEventListener("load", function () {
-    setTimeout(function () { prefetchPages(["cages.html", "style.css?v=5", "aviary.css?v=5", "cages.css?v=5", "data/aviary-data.js?v=5", "bird-card.js?v=5", "cages.js?v=5", "index.html?from=aviary"]); }, 1500);
+    setTimeout(function () { prefetchPages(["cages.html", "style.css?v=6", "aviary.css?v=6", "cages.css?v=6", "data/aviary-data.js?v=6", "bird-card.js?v=6", "cages.js?v=6", "index.html?from=aviary"]); }, 1500);
 });
