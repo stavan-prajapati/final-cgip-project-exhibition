@@ -1215,3 +1215,22 @@ canvas {
     .arrival-popup-icon { display: none; }
     .arrival-popup button { padding: 7px 11px; font-size: 13px; }
 }
+
+/* ---------- Close button of the location lists ---------- */
+.places-close {
+    position: sticky;
+    bottom: -8px;
+    display: block;
+    width: 100%;
+    margin: 8px 0 0;
+    padding: 12px 10px;
+    color: #fff;
+    font: 800 16px var(--zoo-font);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    background: linear-gradient(180deg, #a8703f, var(--wood-dark));
+    border: 2px solid var(--wood-edge);
+    border-radius: 12px;
+    box-shadow: 0 3px 0 rgba(0, 0, 0, 0.25);
+}
+.places-close:active { transform: translateY(2px); box-shadow: none; }

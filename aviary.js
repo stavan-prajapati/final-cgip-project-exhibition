@@ -2060,6 +2060,14 @@ function createSelectList() {
         panel.appendChild(row);
     }
 
+    // Close button at the bottom of the list (stays visible while the list scrolls)
+    const closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "places-close";
+    closeBtn.textContent = "\u2715  Close";
+    closeBtn.addEventListener("click", function () { setSelectOpen(false); });
+    panel.appendChild(closeBtn);
+
     // The list opens in the CENTRE of the screen, over a dimmed background. It stands above the
     // "You reached ..." popups (z-index 8), so a popup can never cover it.
     const backdrop = document.createElement("div");
@@ -2865,5 +2873,5 @@ function prefetchPages(urls) {
     });
 }
 window.addEventListener("load", function () {
-    setTimeout(function () { prefetchPages(["cages.html", "style.css?v=4", "aviary.css?v=4", "cages.css?v=4", "data/aviary-data.js?v=4", "bird-card.js?v=4", "cages.js?v=4", "index.html?from=aviary"]); }, 1500);
+    setTimeout(function () { prefetchPages(["cages.html", "style.css?v=5", "aviary.css?v=5", "cages.css?v=5", "data/aviary-data.js?v=5", "bird-card.js?v=5", "cages.js?v=5", "index.html?from=aviary"]); }, 1500);
 });

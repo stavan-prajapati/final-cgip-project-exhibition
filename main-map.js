@@ -1053,13 +1053,10 @@ const scenery = [
     { type: "tree", x: 260, y: 250, size: 1.3 },  { type: "tree", x: 340, y: 310 },
     { type: "tree", x: 430, y: 230, size: 1.1 },  { type: "tree", x: 510, y: 300, size: 1.2 },
     { type: "tree", x: 590, y: 220 },
-    { type: "tree", x: 210, y: 470 },
     
     { type: "tree", x: 480, y: 440 },             { type: "tree", x: 560, y: 520, size: 1.1 },
 
     // around the north pond
-    { type: "tree", x: 200, y: 585 },
-    { type: "tree", x: 380, y: 590, size: 0.9 },
     { type: "rock", x: 118, y: 800 },             { type: "rock", x: 165, y: 835 },
     { type: "rock", x: 210, y: 848, size: 1.2 },  { type: "rock", x: 285, y: 850 },
     { type: "lily", x: 200, y: 700 },             { type: "lily", x: 255, y: 770, size: 1.2 },
@@ -2006,6 +2003,14 @@ function createPlacesList() {
         panel.appendChild(row);
     }
 
+    // Close button at the bottom of the list (stays visible while the list scrolls)
+    const closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "places-close";
+    closeBtn.textContent = "\u2715  Close";
+    closeBtn.addEventListener("click", function () { setPlacesOpen(false); });
+    panel.appendChild(closeBtn);
+
     // The list opens in the CENTRE of the screen, over a dimmed background. It stands above the
     // "You reached ..." popups (z-index 8), so a popup can never cover it.
     const backdrop = document.createElement("div");
@@ -2082,7 +2087,7 @@ function createPlacesList() {
 // ---------- Where the Places button stands ----------
 // It sits ON THE MAP, in the empty grass just below the Clock (map units, centre of the button).
 // It is placed from these numbers every time the screen size changes, so it stays in the same spot of the map.
-const PLACES_BUTTON_SPOT = { x: 740, y: 790 };
+const PLACES_BUTTON_SPOT = { x: 290, y: 560 };   // above the north pond
 
 function positionPlacesToggle() {
     const toggle = document.getElementById("placesToggle");
@@ -2698,5 +2703,5 @@ function prefetchPages(urls) {
     });
 }
 window.addEventListener("load", function () {
-    setTimeout(function () { prefetchPages(["aviary.html", "style.css?v=4", "aviary.css?v=4", "data/aviary-data.js?v=4", "bird-card.js?v=4", "aviary.js?v=4", "zoo.html", "zoo.css?v=4", "data/zoo-data.js?v=4", "animal-card.js?v=4", "zoo.js?v=4"]); }, 1500);
+    setTimeout(function () { prefetchPages(["aviary.html", "style.css?v=5", "aviary.css?v=5", "data/aviary-data.js?v=5", "bird-card.js?v=5", "aviary.js?v=5", "zoo.html", "zoo.css?v=5", "data/zoo-data.js?v=5", "animal-card.js?v=5", "zoo.js?v=5"]); }, 1500);
 });

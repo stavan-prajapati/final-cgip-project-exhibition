@@ -1832,6 +1832,14 @@ function createSelectList() {
         panel.appendChild(row);
     }
 
+    // Close button at the bottom of the list (stays visible while the list scrolls)
+    const closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "places-close";
+    closeBtn.textContent = "\u2715  Close";
+    closeBtn.addEventListener("click", function () { setSelectOpen(false); });
+    panel.appendChild(closeBtn);
+
     // The list opens in the CENTRE of the screen, over a dimmed background. It stands above the
     // "You reached ..." popups (z-index 8), so a popup can never cover it.
     const backdrop = document.createElement("div");
@@ -1905,7 +1913,7 @@ function placeSelectButton() {
     }
 
     // the board without its bottom strip
-    const bottomKeep = 110;
+    const bottomKeep = 190;                              // stays well above the bottom popup
     const x0 = board.x + 10, y0 = board.y + 10;
     const x1 = board.x + board.w - 10 - w;
     const y1 = board.y + board.h - bottomKeep - h;
@@ -1927,7 +1935,7 @@ function placeSelectButton() {
     let best = null, bestScore = Infinity;
     for (let y = y1; y >= y0; y -= 10) {                  // from the bottom up
         for (let x = x0; x <= x1; x += 10) {              // from the left
-            const score = (y1 - y) * 0.6 + (x - x0);      // lower left is best
+            const score = (y1 - y) * 0.6 + (x - x0);      // left side, a bit above the bottom
             if (score >= bestScore) continue;
             if (hitsRects(x, y) || hitsPath(x, y)) continue;
             best = { left: x, top: y };
@@ -1945,7 +1953,7 @@ function placeSelectButton() {
     const corners = [screenToMap(best.left, best.top), screenToMap(best.left + w, best.top),
                      screenToMap(best.left, best.top + h), screenToMap(best.left + w, best.top + h)];
     const xs = corners.map(function (c) { return c.x; }), ys = corners.map(function (c) { return c.y; });
-    const pad = 45;
+    const pad = 80;
     treeAvoidRect = { x: Math.min.apply(null, xs) - pad, y: Math.min.apply(null, ys) - pad,
                       w: Math.max.apply(null, xs) - Math.min.apply(null, xs) + 2 * pad,
                       h: Math.max.apply(null, ys) - Math.min.apply(null, ys) + 2 * pad };
