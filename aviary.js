@@ -2,8 +2,8 @@
 // aviary.js  -  the Walk-in Aviary map.
 //
 // It is built the same way as main-map.js: tiled walkways with a soft shadow,
-// a wooden bridge, a blue dotted guide line, the visitor pointer (WASD / arrow keys
-// on a PC, joystick on a phone) and a map that fits every screen.
+// a wooden bridge, a blue dotted guide line, the visitor pointer (WASD / arrow keys on a PC, or the
+// "Select Location" list: tap a bird and the pointer walks there) and a map that fits every screen.
 //
 // FIXED VISITING SEQUENCE (the layout makes any other order impossible):
 //
@@ -351,16 +351,16 @@ const view = (function () {
 })();
 
 // This map is wide and a phone held upright is tall. If this is true, the map is turned a
-// quarter turn on such a screen so it is drawn much bigger. The controls are turned with it,
-// so pushing the joystick UP still moves the pointer UP on the screen.
+// quarter turn on such a screen so it is drawn much bigger. The keyboard controls are turned
+// with it, so pressing UP still moves the pointer UP on the screen.
 // Desktop and tablets in landscape always show the map upright.
 // false = the map always stays upright, on every device.
 const ROTATE_ON_PORTRAIT = true;
 
-// On a phone the map is lifted UP and moved LEFT by these many screen pixels (never past the frame / the sign),
-// so the joystick at the bottom right has more room. 0 = no shift.
-const MAP_SHIFT_UP = 60;
-const MAP_SHIFT_LEFT = 55;
+// On a phone the map can be lifted UP / moved LEFT by these many screen pixels (never past the frame / the sign).
+// There is no joystick any more, so the map stays centred. 0 = no shift.
+const MAP_SHIFT_UP = 0;
+const MAP_SHIFT_LEFT = 0;
 
 // ======================================================================
 // WALKABLE AREA: ground level and bridge level
@@ -432,7 +432,6 @@ const VISITOR_START = canvaPoint(700, 603);   // ENTRY POINT: the bottom of the 
 const VISITOR_RADIUS = 15;                    // size of the pointer (also its collision circle)
 const VISITOR_SCREEN_SPEED = 130;             // how fast the pointer moves ON THE SCREEN (pixels per second), the same on every device
 const VISITOR_COLOR = "#168bff";
-const JOYSTICK_SPEED_FACTOR = 0.72;           // 1 = same as keyboard, 0.72 = a bit slower on the phone joystick
 
 // heading = angle the pointer faces (0 = right, PI = left)
 // level   = "ground" or "bridge": which level the visitor is walking on
@@ -503,6 +502,7 @@ window.addEventListener("keydown", (e) => {
     const k = e.key.toLowerCase();
     if (MOVE_KEYS.includes(k)) {
         keys[k] = true;
+        if (autoWalk) cancelAutoWalk();      // the keyboard takes over from the list
         e.preventDefault();
     }
 });
@@ -513,284 +513,8 @@ window.addEventListener("blur", () => {
     for (const k in keys) keys[k] = false;     // forget keys if the tab loses focus
 });
 
-// ======================================================================
-// JOYSTICK + POPUP SETTINGS  -  change these numbers to size and place them yourself
-// (all sizes are in SCREEN pixels; save the file and refresh the page to see the change)
-// ======================================================================
-const JOY_SIZE = 110;            // BIGGEST size of the joystick pad. Bigger number = bigger joystick.
-const JOY_MIN_SIZE = 84;         // SMALLEST size, used on small phones.
-const JOY_SCREEN_SHARE = 0.27;   // the pad is this share of the screen's shorter side (then kept between MIN and SIZE).
-const JOY_SIDE = "right";        // which side of the screen the joystick sits on: "right" or "left".
-const JOY_EDGE = 34;             // gap between the joystick and that side of the screen. Bigger = further from the edge.
-const JOY_BOTTOM = 72;           // gap between the joystick and the bottom of the screen. Bigger = higher up.
-const JOY_IDLE_OPACITY = 0.5;    // how see-through it is while nobody touches it (0 = invisible, 1 = solid).
-
-// The "You reached ..." popup on a phone: it sits at the LOWER side of the screen, next to the joystick.
-const POPUP_BOTTOM = 16;         // gap between the popup and the bottom of the screen. Bigger = higher up.
-const POPUP_EDGE = 10;           // gap between the popup and the side of the screen.
-const POPUP_GAP = 10;            // gap between the popup and the joystick.
-
-// ---------- Controls: joystick (mobile + tablet only) ----------
-const JOY_DEAD_ZONE = 0.15;    // tiny thumb movements are ignored
-const joy = { x: 0, y: 0 };    // joystick direction, each from -1 to 1
-
-function createJoystick() {
-    // The joystick is always created, but only SHOWN while touch is being used
-    // (PC users use WASD). See "When is the joystick visible?" below.
-    //
-    // Look: a round wooden-and-cream pad with FOUR ARROWS and a big green thumb knob, and a small hint
-    // "Drag to move" that disappears after the first use. The arrow you push toward lights up.
-
-    // The pad size follows the screen: big enough for a thumb, never too big for a small phone.
-    function joySize() {
-        return Math.round(Math.max(JOY_MIN_SIZE, Math.min(JOY_SIZE, Math.min(window.innerWidth, window.innerHeight) * JOY_SCREEN_SHARE)));
-    }
-    const IDLE_OPACITY = JOY_IDLE_OPACITY;     // see-through while nobody touches it, so paths and signs stay visible
-    const HELD_OPACITY = 0.9;     // clearer while it is held
-    const KNOB_SHARE = 0.42;      // knob diameter, as a share of the pad
-    const TRAVEL_SHARE = 0.32;    // how far the knob may leave the centre, as a share of the pad
-
-    // z-index 5 keeps the joystick BELOW the information card (the card uses 10)
-    const base = document.createElement("div");
-    base.id = "joystick";
-    base.setAttribute("role", "application");
-    base.setAttribute("aria-label", "Joystick: drag to move the pointer");
-    base.style.cssText =
-        "position:fixed; z-index:5; border-radius:50%;" +
-        JOY_SIDE + ":calc(" + JOY_EDGE + "px + env(safe-area-inset-" + JOY_SIDE + ", 0px));" +
-        `bottom:calc(${JOY_BOTTOM}px + env(safe-area-inset-bottom, 0px));` +
-        "background:radial-gradient(circle at 50% 35%, #fff8e3 0%, #f1dfb4 58%, #c9a56e 100%);" +
-        "border:3px solid #6f4524; opacity:" + IDLE_OPACITY + ";" +
-        "box-shadow:0 0 0 2px rgba(255,244,214,0.9), 0 4px 10px rgba(0,0,0,0.3), inset 0 2px 4px rgba(255,255,255,0.55);" +
-        "touch-action:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;" +
-        "-webkit-tap-highlight-color:transparent; cursor:grab;" +
-        "transition:transform 0.15s ease, box-shadow 0.15s ease, opacity 0.2s ease;";
-
-    // a thin inner ring: "the knob travels inside here"
-    const track = document.createElement("div");
-    track.style.cssText =
-        "position:absolute; inset:19%; border-radius:50%; pointer-events:none;" +
-        "border:2px solid rgba(78,49,25,0.22); background:rgba(78,49,25,0.06);";
-    base.appendChild(track);
-
-    // four chevron arrows (up is always up on the screen, even when the map is turned a quarter turn on a phone)
-    const ARROWS = [
-        { dir: "up",    rot: 0,   css: "top:5%; left:50%; margin-left:-9%;" },
-        { dir: "down",  rot: 180, css: "bottom:5%; left:50%; margin-left:-9%;" },
-        { dir: "left",  rot: -90, css: "left:5%; top:50%; margin-top:-9%;" },
-        { dir: "right", rot: 90,  css: "right:5%; top:50%; margin-top:-9%;" }
-    ];
-    const arrowEls = {};
-    for (const a of ARROWS) {
-        const el = document.createElement("span");
-        el.innerHTML =
-            '<svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true">' +
-            '<path d="M4.5 15.5 L12 8 L19.5 15.5" fill="none" stroke="#fff4d6" stroke-width="6.2" stroke-linecap="round" stroke-linejoin="round"/>' +
-            '<path d="M4.5 15.5 L12 8 L19.5 15.5" fill="none" stroke="#5b3d20" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>' +
-            "</svg>";
-        el.style.cssText =
-            "position:absolute; width:20%; height:20%; pointer-events:none; opacity:0.8;" +
-            `transform:rotate(${a.rot}deg); transition:opacity 0.1s ease, filter 0.1s ease;` + a.css;
-        base.appendChild(el);
-        arrowEls[a.dir] = el;
-    }
-
-    // the thumb knob
-    const knob = document.createElement("div");
-    knob.style.cssText =
-        "position:absolute; left:50%; top:50%; border-radius:50%; pointer-events:none;" +
-        "background:radial-gradient(circle at 35% 28%, #8fe09a 0%, #3f8f4a 58%, #2a6a35 100%);" +
-        "border:3px solid #fff4d6;" +
-        "box-shadow:0 5px 10px rgba(0,0,0,0.4), inset 0 -4px 6px rgba(0,0,0,0.25), inset 0 3px 5px rgba(255,255,255,0.35);" +
-        "transition:transform 0.14s ease-out;";
-    const grip = document.createElement("div");           // small ring on the knob: looks like a thumb rest
-    grip.style.cssText =
-        "position:absolute; inset:27%; border-radius:50%; pointer-events:none;" +
-        "border:2px solid rgba(255,244,214,0.55);";
-    knob.appendChild(grip);
-    base.appendChild(knob);
-
-    // the hint under the pad, until the person has used the joystick once
-    let hintSeen = false;
-    try { hintSeen = localStorage.getItem("zooJoystickUsed") === "1"; } catch (err) { /* private mode: just show it */ }
-    const hint = document.createElement("div");
-    hint.textContent = "Drag to move";
-    hint.style.cssText =
-        "position:absolute; top:100%; left:50%; transform:translateX(-50%); margin-top:9px; pointer-events:none;" +
-        "white-space:nowrap; padding:3px 9px; border-radius:999px;" +
-        "font:800 11px 'Trebuchet MS', 'Segoe UI', system-ui, sans-serif; letter-spacing:0.03em;" +
-        "color:#fff4d6; background:rgba(78,49,25,0.9); border:2px solid #fff4d6;" +
-        "box-shadow:0 2px 6px rgba(0,0,0,0.3); transition:opacity 0.4s ease;" +
-        (hintSeen ? "opacity:0; display:none;" : "");
-    base.appendChild(hint);
-
-    document.body.appendChild(base);
-
-    // Size everything from the screen size (called now and on every resize)
-    let maxDist = 0;
-    const popupStyle = document.createElement("style");   // keeps the "You reached ..." popup ABOVE the pad
-    document.head.appendChild(popupStyle);
-
-    function layoutJoystick() {
-        const size = joySize();
-        base.style.width = size + "px";
-        base.style.height = size + "px";
-        const knobSize = Math.round(size * KNOB_SHARE);
-        knob.style.width = knobSize + "px";
-        knob.style.height = knobSize + "px";
-        knob.style.margin = (-knobSize / 2) + "px 0 0 " + (-knobSize / 2) + "px";
-        maxDist = size * TRAVEL_SHARE;
-        hint.style.fontSize = "11px";
-        // On a phone the "You reached ..." popup sits at the bottom, BESIDE the joystick:
-        // it keeps clear of the joystick's side, and the Back button now lives at the top right.
-        const joyWidth = size + JOY_EDGE + POPUP_GAP;
-        const popupLeft = JOY_SIDE === "left" ? joyWidth : POPUP_EDGE;
-        const popupRight = JOY_SIDE === "left" ? POPUP_EDGE : joyWidth;
-        popupStyle.textContent = touchMode
-            ? `.arrival-popup {
-                   left: calc(${popupLeft}px + env(safe-area-inset-left, 0px)) !important;
-                   right: calc(${popupRight}px + env(safe-area-inset-right, 0px)) !important;
-                   bottom: calc(${POPUP_BOTTOM}px + env(safe-area-inset-bottom, 0px)) !important;
-                   max-width: none !important;
-                   transform: none !important;
-                   flex-wrap: wrap;
-                   justify-content: flex-start;
-                   gap: 6px 10px;
-                   padding: 8px 10px 9px 12px;
-                   font-size: 14px;
-                   animation: popUpLow 0.35s ease both !important;
-               }
-               .arrival-popup-text { flex: 1 1 90px; min-width: 0; }
-               .arrival-popup button { flex: 1 0 100%; padding: 8px 12px; }
-               @keyframes popUpLow { from { opacity: 0; transform: translateY(22px) scale(0.95); } to { opacity: 1; transform: none; } }`
-            : "";
-    }
-
-    // ---- When is the joystick visible? ----
-    // We follow the input the person is REALLY using:
-    //   a finger touches the screen          -> show the joystick (phone / tablet)
-    //   the mouse moves, or WASD / arrows    -> hide it (PC: keyboard is enough)
-    // Before any input, the first guess comes from the device type.
-    function isPhoneLike() {
-        return typeof navigator !== "undefined" &&
-               /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-    }
-    function guessTouchDevice() {
-        return window.matchMedia("(pointer: coarse)").matches || isPhoneLike();
-    }
-
-    let touchMode = guessTouchDevice();
-
-    function applyJoystickVisibility() {
-        base.style.display = touchMode ? "block" : "none";
-        if (!touchMode) { joy.x = 0; joy.y = 0; }
-        layoutJoystick();
-    }
-
-    function setTouchMode(on) {
-        if (touchMode === on) return;
-        touchMode = on;
-        applyJoystickVisibility();
-    }
-
-    applyJoystickVisibility();
-
-    // finger / pen -> touch mode.  Mouse -> PC mode (but never on a phone-like device,
-    // because the browser's phone emulation also produces mouse events).
-    window.addEventListener("pointerdown", (e) => {
-        if (e.pointerType === "touch" || e.pointerType === "pen") setTouchMode(true);
-        else if (!isPhoneLike()) setTouchMode(false);
-    }, true);
-    window.addEventListener("pointermove", (e) => {
-        if (e.pointerType === "mouse" && !isPhoneLike()) setTouchMode(false);
-    }, { passive: true });
-    window.addEventListener("keydown", (e) => {
-        if (MOVE_KEYS.includes(e.key.toLowerCase())) setTouchMode(false);
-    });
-
-    // switching between PC and phone in the browser's device toolbar
-    window.matchMedia("(pointer: coarse)").addEventListener?.("change", () => setTouchMode(guessTouchDevice()));
-    window.addEventListener("resize", () => {
-        if (isPhoneLike()) setTouchMode(true);
-        layoutJoystick();
-    });
-
-    // ---- Dragging ----
-    let activePointer = null;
-    let centerX = 0, centerY = 0;
-
-    function lightArrows(nx, ny) {                         // the arrow you push toward lights up
-        const amount = { up: Math.max(0, -ny), down: Math.max(0, ny), left: Math.max(0, -nx), right: Math.max(0, nx) };
-        for (const dir in arrowEls) {
-            const v = Math.min(1, amount[dir] * 1.4);
-            arrowEls[dir].style.opacity = String(0.8 + 0.2 * v);
-            arrowEls[dir].style.filter = v > 0.35 ? "drop-shadow(0 0 4px #3f8f4a) brightness(1.15)" : "none";
-        }
-    }
-
-    function moveKnob(e) {
-        let dx = e.clientX - centerX;
-        let dy = e.clientY - centerY;
-
-        const dist = Math.hypot(dx, dy);
-        if (dist > maxDist) {                  // keep the knob inside the pad
-            dx *= maxDist / dist;
-            dy *= maxDist / dist;
-        }
-        knob.style.transform = `translate(${dx}px, ${dy}px)`;
-
-        const nx = dx / maxDist;
-        const ny = dy / maxDist;
-        if (Math.hypot(nx, ny) < JOY_DEAD_ZONE) {
-            joy.x = 0; joy.y = 0;
-            lightArrows(0, 0);
-        } else {
-            joy.x = nx; joy.y = ny;
-            lightArrows(nx, ny);
-        }
-    }
-
-    function releaseKnob() {
-        activePointer = null;
-        knob.style.transition = "transform 0.14s ease-out";     // the knob springs back to the centre
-        knob.style.transform = "translate(0px, 0px)";
-        base.style.transform = "none";
-        base.style.opacity = String(IDLE_OPACITY);          // see-through again
-        base.style.cursor = "grab";
-        joy.x = 0; joy.y = 0;
-        lightArrows(0, 0);
-    }
-
-    base.addEventListener("pointerdown", (e) => {
-        activePointer = e.pointerId;
-        base.setPointerCapture(e.pointerId);
-        const rect = base.getBoundingClientRect();           // measured once, so the knob does not jump while dragging
-        centerX = rect.left + rect.width / 2;
-        centerY = rect.top + rect.height / 2;
-        knob.style.transition = "none";                      // the knob follows the finger without delay
-        base.style.transform = "scale(1.04)";                // the pad grows a little: "you are holding it"
-        base.style.opacity = String(HELD_OPACITY);           // and becomes clearer while it is held
-        base.style.cursor = "grabbing";
-        if (navigator.vibrate) navigator.vibrate(8);         // tiny buzz on phones that support it
-        if (!hintSeen) {                                     // the hint has done its job
-            hintSeen = true;
-            hint.style.opacity = "0";
-            setTimeout(() => { hint.style.display = "none"; }, 450);
-            try { localStorage.setItem("zooJoystickUsed", "1"); } catch (err) { /* ignore */ }
-        }
-        moveKnob(e);
-        e.preventDefault();
-    });
-    base.addEventListener("pointermove", (e) => {
-        if (e.pointerId === activePointer) moveKnob(e);
-    });
-    base.addEventListener("pointerup", releaseKnob);
-    base.addEventListener("pointercancel", releaseKnob);
-    base.addEventListener("lostpointercapture", releaseKnob);
-    base.addEventListener("contextmenu", (e) => e.preventDefault());   // no long-press menu on the pad
-}
-
-createJoystick();
+// (The joystick was removed: the visitor is moved with the keyboard on a PC, or with the
+//  "Select Location" list - see further down.)
 
 // ---------- 2D transformation matrices (homogeneous coordinates) ----------
 // A point (x, y) is written as the column (x, y, 1), so translation, rotation and
@@ -849,6 +573,7 @@ function transformPoint(M, p) {
 // ---------- Move the visitor ----------
 function updateVisitor(dt) {
     if (typeof isBirdCardOpen === "function" && isBirdCardOpen()) return;   // the visitor stands still while a card is open
+    if (autoWalk) { stepAutoWalk(dt); return; }                              // walking to a bird chosen in the list
 
     // 1. read the controls (y grows downward on the screen)
     let ix = 0, iy = 0;
@@ -856,8 +581,6 @@ function updateVisitor(dt) {
     if (keys["d"] || keys["arrowright"]) ix += 1;
     if (keys["w"] || keys["arrowup"])    iy -= 1;
     if (keys["s"] || keys["arrowdown"])  iy += 1;
-    ix += joy.x * JOYSTICK_SPEED_FACTOR;     // phone / tablet joystick: a bit slower than the keyboard
-    iy += joy.y * JOYSTICK_SPEED_FACTOR;
 
     const len = Math.hypot(ix, iy);
     if (len < 0.01) return;                    // not moving
@@ -1880,7 +1603,7 @@ function labelOnWalkway(x, y, w, h) {                  // share (0 to 1) of the 
 // Screen areas the names must stay out of: the wooden sign and the Back button
 function keepOutAreas() {
     const out = [];
-    for (const sel of [".zoo-title", ".zoo-back"]) {
+    for (const sel of [".zoo-title", ".zoo-back", ".select-toggle"]) {
         const el = document.querySelector(sel);
         if (el) out.push({ x: el.offsetLeft - 4, y: el.offsetTop - 12, w: el.offsetWidth + 8, h: el.offsetHeight + 16 });
     }
@@ -2109,6 +1832,12 @@ function updateBirdPopup() {
         const dist = Math.hypot(visitor.x - spot.point.x, visitor.y - spot.point.y);
         if (dist <= best) { best = dist; found = spot.id; }
     }
+    // just walked to a bird from the list: show THAT bird (until the visitor moves away)
+    if (forcedBird) {
+        if (Math.hypot(visitor.x - forcedBird.x, visitor.y - forcedBird.y) < 1) found = forcedBird.id;
+        else forcedBird = null;
+    }
+    if (autoWalk) found = null;                    // no popup while walking past
     if (found === birdNearby) return;              // nothing changed
     birdNearby = found;
     if (found) {
@@ -2121,6 +1850,305 @@ function updateBirdPopup() {
         birdPopup.style.display = "none";
     }
 }
+
+// ======================================================================
+// SELECT LOCATION LIST (replaces the joystick)
+// ======================================================================
+// A "Select Location" button at the top opens a list of the birds. Tapping a bird in the list (or tapping
+// its badge / name on the map) makes the visitor pointer WALK there along the blue guide line. When it
+// arrives, the normal popup appears ("You reached ... / View Details"), and that opens the bird card.
+// The keyboard (WASD / arrows) still works on a PC and stops the automatic walk.
+
+const AUTOWALK_SCREEN_SPEED = 300;   // pointer speed during the automatic walk (screen pixels per second)
+
+// The walking track = the blue guide line (entrance -> dome 1 -> bridge -> dome 2).
+// For every little piece of it we know what the visitor stands on (ground way 0, the bridge, or ground way 1).
+const walkTrack = (function () {
+    const pts = mainRoute, n1 = routeToBridge.length;
+    const tags = [], cum = [0];
+    for (let i = 0; i < pts.length - 1; i++) {
+        tags.push(i < n1 - 1 ? { level: "ground", way: 0 }
+                : i <= n1    ? { level: "bridge", way: 0 }
+                :              { level: "ground", way: 1 });
+        cum.push(cum[i] + Math.hypot(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y));
+    }
+    return { pts: pts, tags: tags, cum: cum, length: cum[cum.length - 1] };
+})();
+
+// Closest point of the track to (x, y). "accept" (optional) says which pieces may be used.
+function nearestOnTrack(x, y, accept) {
+    const T = walkTrack;
+    let best = { d: Infinity, s: 0, x: x, y: y };
+    for (let i = 0; i < T.pts.length - 1; i++) {
+        if (accept && !accept(T.tags[i])) continue;
+        const a = T.pts[i], b = T.pts[i + 1];
+        const dx = b.x - a.x, dy = b.y - a.y, len2 = dx * dx + dy * dy;
+        const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / len2));
+        const qx = a.x + t * dx, qy = a.y + t * dy;
+        const d = Math.hypot(x - qx, y - qy);
+        if (d < best.d) best = { d: d, s: T.cum[i] + t * Math.sqrt(len2), x: qx, y: qy };
+    }
+    return best;
+}
+
+// The point at distance s along the track, the piece it lies on and the direction of that piece
+function trackPoint(s) {
+    const T = walkTrack;
+    s = Math.max(0, Math.min(T.length, s));
+    let i = 0;
+    while (i < T.pts.length - 2 && s > T.cum[i + 1]) i++;
+    const a = T.pts[i], b = T.pts[i + 1];
+    const len = T.cum[i + 1] - T.cum[i];
+    const t = len > 0 ? (s - T.cum[i]) / len : 0;
+    return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, tag: T.tags[i], angle: Math.atan2(b.y - a.y, b.x - a.x) };
+}
+
+// Where the visitor stops for every bird: the closest point of the track to the bird.
+// Listed in walking order (entrance first), which is also the order of the list.
+const birdStops = birdSpots.map(function (spot) {
+    return { id: spot.id, name: birdName(spot.id), s: nearestOnTrack(spot.point.x, spot.point.y).s };
+}).sort(function (a, b) { return a.s - b.s; });
+
+let autoWalk = null;      // null = not walking, otherwise { id, name, s, targetS, dir, lead }
+let forcedBird = null;    // the bird we just walked to: its popup is shown even if another bird is a little closer
+
+function turnVisitorTo(angle, dt) {
+    let diff = angle - visitor.heading;
+    diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+    visitor.heading += diff * Math.min(1, dt * 14);
+}
+
+function startAutoWalk(stop) {
+    // where is the visitor on the track? (only pieces of the level / way it stands on, so the
+    // place where the entrance path passes UNDER the bridge can never be mixed up with the bridge)
+    const here = nearestOnTrack(visitor.x, visitor.y, function (tag) {
+        return tag.level === visitor.level && (visitor.level === "bridge" || tag.way === visitor.way);
+    });
+    autoWalk = {
+        id: stop.id,
+        name: stop.name,
+        s: here.s,
+        targetS: stop.s,
+        dir: stop.s >= here.s ? 1 : -1,
+        lead: here.d > 0.5 ? { x: here.x, y: here.y } : null     // first step back onto the guide line
+    };
+    forcedBird = null;
+    if (window.hideSelectHint) window.hideSelectHint(true);
+    updateSelectToggle();
+}
+
+function cancelAutoWalk() {
+    if (!autoWalk) return;
+    autoWalk = null;
+    updateSelectToggle();
+}
+
+// Called every frame while walking (from updateVisitor)
+function stepAutoWalk(dt) {
+    const w = autoWalk;
+    let move = (AUTOWALK_SCREEN_SPEED / viewScale) * dt;       // screen pixels -> map units
+
+    if (w.lead) {                                              // step onto the guide line first
+        const dx = w.lead.x - visitor.x, dy = w.lead.y - visitor.y, d = Math.hypot(dx, dy);
+        if (d > 0.01) turnVisitorTo(Math.atan2(dy, dx), dt);
+        if (d > move) {
+            visitor.x += (dx / d) * move;
+            visitor.y += (dy / d) * move;
+            return;
+        }
+        visitor.x = w.lead.x;
+        visitor.y = w.lead.y;
+        move -= d;
+        w.lead = null;
+    }
+
+    w.s += w.dir * Math.min(move, Math.abs(w.targetS - w.s));
+    const p = trackPoint(w.s);
+    visitor.x = p.x;
+    visitor.y = p.y;
+    visitor.level = p.tag.level;
+    visitor.way = p.tag.way;
+    turnVisitorTo(p.angle + (w.dir < 0 ? Math.PI : 0), dt);
+
+    if (Math.abs(w.targetS - w.s) < 0.01) {                    // arrived
+        forcedBird = { id: w.id, x: visitor.x, y: visitor.y };
+        autoWalk = null;
+        updateSelectToggle();                                  // updateBirdPopup() now shows "You reached ..."
+    }
+}
+
+// ---------- The "Select Location" button and the list ----------
+const SELECT_HINT_KEY = "zooAviarySelectSeen";
+const SELECT_PIN = '<svg viewBox="0 0 24 24" width="1.15em" height="1.15em" aria-hidden="true" style="vertical-align:-0.2em">'
+    + '<path d="M12 1.5C8 1.5 4.8 4.7 4.8 8.7c0 5.4 7.2 13.8 7.2 13.8s7.2-8.4 7.2-13.8c0-4-3.2-7.2-7.2-7.2z" fill="#ea4335" stroke="#a52714" stroke-width="1"/>'
+    + '<circle cx="12" cy="8.7" r="2.9" fill="#fff"/></svg>';
+
+function createSelectList() {
+    const toggle = document.createElement("button");
+    toggle.id = "selectToggle";
+    toggle.className = "places-toggle select-toggle";
+    toggle.type = "button";
+    toggle.setAttribute("aria-haspopup", "true");
+    toggle.setAttribute("aria-expanded", "false");
+    toggle.setAttribute("aria-controls", "selectPanel");
+
+    const panel = document.createElement("div");
+    panel.id = "selectPanel";
+    panel.className = "places-panel";
+    panel.setAttribute("role", "menu");
+    panel.setAttribute("aria-label", "Birds in the aviary");
+    panel.hidden = true;
+
+    const heading = document.createElement("div");
+    heading.className = "places-heading";
+    heading.textContent = "Select a bird to visit";
+    panel.appendChild(heading);
+
+    for (const stop of birdStops) {
+        const bird = (typeof aviaryBirds !== "undefined") && aviaryBirds.find(function (b) { return b.id === stop.id; });
+        const status = bird && typeof conservationStatus !== "undefined" ? conservationStatus[bird.status] : null;
+
+        const row = document.createElement("button");
+        row.type = "button";
+        row.className = "places-item";
+        row.setAttribute("role", "menuitem");
+        row.style.setProperty("--place-color", status ? status.color : "#8e24aa");
+
+        const icon = document.createElement("span");
+        icon.className = "places-item-icon";
+        icon.setAttribute("aria-hidden", "true");
+        icon.textContent = "\uD83D\uDC26";
+
+        const text = document.createElement("span");
+        text.className = "places-item-text";
+        const name = document.createElement("b");
+        name.textContent = stop.name;
+        text.appendChild(name);
+        if (status) {
+            const note = document.createElement("small");
+            note.textContent = status.label;
+            text.appendChild(note);
+        }
+
+        const go = document.createElement("span");
+        go.className = "places-item-go";
+        go.setAttribute("aria-hidden", "true");
+        go.textContent = "\u203A";
+
+        row.appendChild(icon);
+        row.appendChild(text);
+        row.appendChild(go);
+        row.addEventListener("click", function () {
+            setSelectOpen(false);
+            startAutoWalk(stop);
+        });
+        panel.appendChild(row);
+    }
+
+    document.body.appendChild(panel);
+    document.body.appendChild(toggle);
+
+    // pulsing ring around the button until it is tapped for the first time
+    let seen = false;
+    try { seen = localStorage.getItem(SELECT_HINT_KEY) === "1"; } catch (err) { /* private mode: just show it */ }
+    if (!seen) toggle.classList.add("attention");
+    window.hideSelectHint = function (remember) {
+        toggle.classList.remove("attention");
+        if (remember) { try { localStorage.setItem(SELECT_HINT_KEY, "1"); } catch (err) { /* ignore */ } }
+    };
+
+    function setSelectOpen(open) {
+        panel.hidden = !open;
+        toggle.setAttribute("aria-expanded", open ? "true" : "false");
+        if (open) placeSelectPanel();
+    }
+    window.setSelectOpen = setSelectOpen;
+
+    toggle.addEventListener("click", function () {
+        window.hideSelectHint(true);
+        setSelectOpen(panel.hidden);
+    });
+    // tap outside the list, or press Escape: close it
+    document.addEventListener("pointerdown", function (e) {
+        if (!panel.hidden && !panel.contains(e.target) && !toggle.contains(e.target)) setSelectOpen(false);
+    });
+    document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape") setSelectOpen(false);
+    });
+
+    updateSelectToggle();
+}
+
+// The list opens just under the button (centred on it, never leaving the screen)
+function placeSelectPanel() {
+    const toggle = document.getElementById("selectToggle"), panel = document.getElementById("selectPanel");
+    if (!toggle || !panel || panel.hidden) return;
+    const r = toggle.getBoundingClientRect();
+    const w = panel.offsetWidth;
+    const left = Math.max(8, Math.min(window.innerWidth - w - 8, r.left + r.width / 2 - w / 2));
+    const top = r.bottom + 10;
+    panel.style.right = "auto";
+    panel.style.left = left + "px";
+    panel.style.top = top + "px";
+    panel.style.transformOrigin = "50% 0";
+    panel.style.maxHeight = Math.max(140, window.innerHeight - top - 16) + "px";
+}
+
+// Where the button stands: top centre, next to the sign and the Back button.
+// On a narrow phone there is no room between them, so it gets its own row under them.
+function positionSelectButton() {
+    const toggle = document.getElementById("selectToggle");
+    if (!toggle) return;
+    const sign = document.querySelector(".zoo-title"), back = document.querySelector(".zoo-back");
+    let top;
+    if (window.innerWidth <= 600) {
+        top = 0;
+        for (const el of [sign, back]) if (el) top = Math.max(top, el.offsetTop + el.offsetHeight);
+        top += 8;
+    } else {
+        top = back ? back.offsetTop + (back.offsetHeight - toggle.offsetHeight) / 2 : 10;
+    }
+    toggle.style.top = Math.round(top) + "px";
+    toggle.style.left = Math.round(Math.max(4, (window.innerWidth - toggle.offsetWidth) / 2)) + "px";
+    placeSelectPanel();
+}
+
+// The button text: "Select Location", or "Walking..." while the pointer is on its way
+function updateSelectToggle() {
+    const toggle = document.getElementById("selectToggle");
+    if (!toggle) return;
+    toggle.innerHTML = autoWalk ? "\uD83D\uDEB6 Walking\u2026" : SELECT_PIN + " Select Location";
+    toggle.setAttribute("aria-label", autoWalk ? "Walking to " + autoWalk.name + ". Open the list of birds" : "Open the list of birds");
+    toggle.classList.toggle("walking", !!autoWalk);
+    positionSelectButton();
+}
+
+createSelectList();
+
+// ---------- Click to visit: tap a bird badge or its name on the map ----------
+function birdAtScreenPoint(x, y) {
+    for (let i = birdLayout.length - 1; i >= 0; i--) {
+        const it = birdLayout[i];
+        if (Math.hypot(x - it.sx, y - it.sy) <= it.R + 6) return it.id;
+        if (x >= it.lx - 4 && x <= it.lx + it.w + 4 && y >= it.ly - 4 && y <= it.ly + it.h + 4) return it.id;
+    }
+    return null;
+}
+
+canvas.addEventListener("click", function (e) {
+    if (new URLSearchParams(location.search).has("place")) return;                 // the placement helper uses clicks
+    if (typeof isBirdCardOpen === "function" && isBirdCardOpen()) return;
+    const r = canvas.getBoundingClientRect();
+    const id = birdAtScreenPoint(e.clientX - r.left, e.clientY - r.top);
+    const stop = id && birdStops.find(function (b) { return b.id === id; });
+    if (stop) startAutoWalk(stop);
+});
+
+canvas.addEventListener("pointermove", function (e) {
+    if (e.pointerType !== "mouse") return;
+    const r = canvas.getBoundingClientRect();
+    canvas.style.cursor = birdAtScreenPoint(e.clientX - r.left, e.clientY - r.top) ? "pointer" : "";
+}, { passive: true });
 
 // ---------- "Caged Birds" marker: a wooden SIGN BOARD ----------
 // A signpost planted on the grass beside the end of the walk: a wooden post with a plank that reads
@@ -2314,7 +2342,7 @@ let cageNearby = false;
 let cageLeftAt = null;
 
 function updateCagePopup() {
-    const reached = Math.hypot(visitor.x - cageMarker.point.x, visitor.y - cageMarker.point.y) <= cageMarker.trigger;
+    const reached = !autoWalk && Math.hypot(visitor.x - cageMarker.point.x, visitor.y - cageMarker.point.y) <= cageMarker.trigger;
     const cardOpen = typeof isBirdCardOpen === "function" && isBirdCardOpen();
     let show = reached && !cardOpen;
     // keep the popup for 1.5 s after the visitor steps away, so a tap is not lost
@@ -2490,13 +2518,8 @@ function treeProblem(sx, sy, k, others) {
 let treeList = [];                // trees for this screen size, sorted so the lower ones stand in front
 
 function layoutTrees() {
-    // the joystick (phones / tablets) and its "Drag to move" hint are kept free of trees too
+    // the sign, the Back button and the Select Location button are kept free of trees
     const keepOut = keepOutAreas();
-    const pad = document.getElementById("joystick");
-    if (pad && pad.style.display !== "none") {
-        const r = pad.getBoundingClientRect();
-        keepOut.push({ x: r.left - 6, y: r.top - 6, w: r.width + 12, h: r.height + 52 });
-    }
     const others = { items: birdLayout, keepOut: keepOut, cage: mapToScreen(cageMarker.point) };
     const trees = [];
     const farEnough = function (mx, my) {
@@ -2669,12 +2692,14 @@ function resizeCanvas() {
 
     // On a narrow screen the wooden sign (top) and the Back button (bottom) lie over the board, so the map is
     // fitted into the free space between them. Then no bird marker can ever hide behind them.
+    positionSelectButton();                                             // the Select Location button (top centre)
     const titleEl = document.querySelector(".zoo-title"), backEl = document.querySelector(".zoo-back");
+    const selectEl = document.getElementById("selectToggle");
     const narrow = screenWidth <= 600 || screenHeight <= 500;           // a phone, upright or on its side
     // the sign (top left) and the Back button (top right) are both at the top: keep the map below the lower one
     let reserveTop = 0;
     if (narrow) {
-        for (const el of [titleEl, backEl]) {
+        for (const el of [titleEl, backEl, selectEl]) {
             if (el) reserveTop = Math.max(reserveTop, el.offsetTop + el.offsetHeight + 8 - margin);
         }
     }
@@ -2696,7 +2721,7 @@ function resizeCanvas() {
     viewScale = viewRotated ? turnedScale : uprightScale;
 
     // On a phone the whole map is lifted UP and moved to the LEFT (MAP_SHIFT_UP / MAP_SHIFT_LEFT pixels), which leaves
-    // free room for the joystick at the bottom right. It never goes further than the free space around the
+    // room taken by the optional map shift (0 now). It never goes further than the free space around the
     // map allows, so nothing is cut off by the frame or hidden behind the sign.
     let centerX = screenWidth / 2;
     if (narrow) {
@@ -2761,7 +2786,7 @@ function animateRoute(now) {
         dashOffset = 0;
     }
 
-    updateVisitor(dt);                   // the visitor moves with WASD / joystick
+    updateVisitor(dt);                   // the visitor moves with WASD, or walks to the bird chosen in the list
     updateBirdPopup();                   // "You reached ..." popup near a bird
     updateCagePopup();                   // "Visit the Caged Birds?" popup at the end of the walk
 
